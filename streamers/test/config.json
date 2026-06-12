@@ -1,0 +1,8 @@
+{
+  "id": "test",
+  "nom": "Test Streamer",
+  "couleur": "#1a7fd4",
+  "couleur2": "#0d4a8a",
+  "description": "Collection de démonstration.",
+  "twitch_login": "teststreamer"
+}

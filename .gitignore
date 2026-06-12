@@ -1,0 +1,12 @@
+node_modules/
+karto.db
+key.pem
+cert.pem
+.env
+
+PROMPT_GEMINI_IMAGES.md
+dashboard.html
+twitch.exe
+cards.json
+config.json
+img/

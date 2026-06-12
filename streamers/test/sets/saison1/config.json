@@ -1,0 +1,19 @@
+{
+  "id": "saison1",
+  "nom": "Saison 1",
+  "description": "",
+  "date": "",
+  "couleur": "#1a7fd4",
+  "boosters": {
+    "single":  { "nom": "Booster",  "cout": 500,  "nb_cartes": 10, "garantie": null },
+    "pack":    { "nom": "Pack x3",  "cout": 1200, "nb_cartes": 30, "garantie": "Épique" },
+    "display": { "nom": "Display",  "cout": 4000, "nb_cartes": 100, "garantie": "Légendaire" }
+  },
+  "raretes": {
+    "Commun":     { "chance": 50, "couleur": "#8a9bb0" },
+    "Peu Commun": { "chance": 30, "couleur": "#4caf80" },
+    "Rare":       { "chance": 15, "couleur": "#4a90d9" },
+    "Épique":     { "chance": 4,  "couleur": "#9b59b6" },
+    "Légendaire": { "chance": 1,  "couleur": "#f0a500" }
+  }
+}
