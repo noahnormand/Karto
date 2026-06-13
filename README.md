@@ -4,14 +4,28 @@ Ouvre des boosters de cartes virtuelles avec tes points de chaîne Twitch.
 
 Chaque streamer configure ses propres sets et cartes. Quand un viewer dépense ses points, il reçoit un pack dans son inventaire — il peut l'ouvrir quand il veut sur le site.
 
+**Live** → [karto-182e.onrender.com](https://karto-182e.onrender.com)
+
 ---
 
 ## Stack
 
 - Node.js + Express
-- SQLite (better-sqlite3)
+- PostgreSQL (Neon)
 - Twitch OAuth (Implicit Grant) + EventSub webhooks
 - Tailwind CDN
+
+---
+
+## Déploiement
+
+Hébergé sur [Render](https://render.com) (free tier) avec une base PostgreSQL [Neon](https://neon.tech) (free tier).
+
+Variables d'environnement requises :
+```
+DATABASE_URL=postgresql://...
+NODE_ENV=production
+```
 
 ---
 
@@ -22,8 +36,10 @@ npm install
 node server.js
 ```
 
-Le serveur tourne sur `https://localhost:3000` (HTTPS requis pour l'OAuth Twitch).  
-Il faut des certificats auto-signés `key.pem` et `cert.pem` à la racine :
+Crée un fichier `.env` à la racine avec ta `DATABASE_URL` Neon.
+
+Le serveur local tourne sur `https://localhost:3000` (HTTPS requis pour l'OAuth Twitch).  
+Génère les certificats auto-signés si besoin :
 
 ```bash
 openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=localhost"
