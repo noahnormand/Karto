@@ -1,23 +1,21 @@
+require('dotenv').config()
+
 const express  = require('express')
 const https    = require('https')
 const http     = require('http')
 const fs       = require('fs')
 const path     = require('path')
-const Database = require('better-sqlite3')
+const { Pool } = require('pg')
 
-const app = express()
+const app  = express()
+const prod = process.env.NODE_ENV === 'production'
 
 app.use(express.json())
 app.use(express.static('.'))
 
-const ssl = {
-  key:  fs.readFileSync('key.pem'),
-  cert: fs.readFileSync('cert.pem')
-}
-
-// streamers en mémoire : { kc: { config, sets: { saison1: { config, cards } } } }
-const streamers = {}
-const twitchToStreamer = {} // karminecorp -> kc
+// streamers en mémoire : { test: { config, sets: { saison1: { config, cards } } } }
+const streamers      = {}
+const twitchToStreamer = {} // login twitch -> id dossier
 
 function loadStreamers() {
   const dir = 'streamers'
@@ -58,38 +56,34 @@ loadStreamers()
 
 // base de données
 
-const db = new Database('karto.db')
+const db = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: prod ? { rejectUnauthorized: false } : false
+})
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS viewer_cards (
-    viewer_id   TEXT NOT NULL,
-    streamer_id TEXT NOT NULL,
-    set_id      TEXT NOT NULL DEFAULT '',
-    carte_id    TEXT NOT NULL,
-    quantite    INTEGER DEFAULT 1,
-    PRIMARY KEY (viewer_id, streamer_id, set_id, carte_id)
-  )
-`)
-
-// migration si ancienne table sans set_id
-const cols = db.pragma('table_info(viewer_cards)').map(c => c.name)
-if (!cols.includes('set_id')) {
-  db.exec(`ALTER TABLE viewer_cards ADD COLUMN set_id TEXT DEFAULT ''`)
-  console.log('migration viewer_cards: set_id ajouté')
+async function initDB() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS viewer_cards (
+      viewer_id   TEXT NOT NULL,
+      streamer_id TEXT NOT NULL,
+      set_id      TEXT NOT NULL DEFAULT '',
+      carte_id    TEXT NOT NULL,
+      quantite    INTEGER DEFAULT 1,
+      PRIMARY KEY (viewer_id, streamer_id, set_id, carte_id)
+    )
+  `)
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS viewer_packs (
+      viewer_id    TEXT NOT NULL,
+      streamer_id  TEXT NOT NULL,
+      set_id       TEXT NOT NULL,
+      booster_type TEXT NOT NULL,
+      quantite     INTEGER DEFAULT 0,
+      PRIMARY KEY (viewer_id, streamer_id, set_id, booster_type)
+    )
+  `)
+  console.log('db ok')
 }
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS viewer_packs (
-    viewer_id    TEXT NOT NULL,
-    streamer_id  TEXT NOT NULL,
-    set_id       TEXT NOT NULL,
-    booster_type TEXT NOT NULL,
-    quantite     INTEGER DEFAULT 0,
-    PRIMARY KEY (viewer_id, streamer_id, set_id, booster_type)
-  )
-`)
-
-console.log('db ok')
 
 
 // api streamers
@@ -127,12 +121,11 @@ app.get('/api/streamer/:id/set/:setId/cards', (req, res) => {
 
 // collection
 
-app.get('/api/collection/:viewerId', (req, res) => {
-  const rows = db.prepare(`
-    SELECT streamer_id, set_id, carte_id, quantite
-    FROM viewer_cards WHERE viewer_id = ?
-  `).all(req.params.viewerId)
-
+app.get('/api/collection/:viewerId', async (req, res) => {
+  const { rows } = await db.query(
+    'SELECT streamer_id, set_id, carte_id, quantite FROM viewer_cards WHERE viewer_id = $1',
+    [req.params.viewerId]
+  )
   const col = {}
   rows.forEach(r => {
     if (!col[r.streamer_id]) col[r.streamer_id] = {}
@@ -142,7 +135,7 @@ app.get('/api/collection/:viewerId', (req, res) => {
   res.json(col)
 })
 
-app.post('/api/streamer/:id/set/:setId/collection/:viewerId', (req, res) => {
+app.post('/api/streamer/:id/set/:setId/collection/:viewerId', async (req, res) => {
   const { cartes } = req.body
   const { id: streamerId, setId, viewerId } = req.params
 
@@ -152,18 +145,24 @@ app.post('/api/streamer/:id/set/:setId/collection/:viewerId', (req, res) => {
   const count = {}
   cartes.forEach(id => { count[id] = (count[id] || 0) + 1 })
 
-  const upsert = db.prepare(`
-    INSERT INTO viewer_cards (viewer_id, streamer_id, set_id, carte_id, quantite)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT (viewer_id, streamer_id, set_id, carte_id)
-    DO UPDATE SET quantite = quantite + excluded.quantite
-  `)
-
-  db.transaction(() => {
+  const client = await db.connect()
+  try {
+    await client.query('BEGIN')
     for (const [carteId, nb] of Object.entries(count)) {
-      upsert.run(viewerId, streamerId, setId, carteId, nb)
+      await client.query(`
+        INSERT INTO viewer_cards (viewer_id, streamer_id, set_id, carte_id, quantite)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (viewer_id, streamer_id, set_id, carte_id)
+        DO UPDATE SET quantite = viewer_cards.quantite + excluded.quantite
+      `, [viewerId, streamerId, setId, carteId, nb])
     }
-  })()
+    await client.query('COMMIT')
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
 
   res.json({ ok: true })
 })
@@ -171,12 +170,11 @@ app.post('/api/streamer/:id/set/:setId/collection/:viewerId', (req, res) => {
 
 // packs (inventaire)
 
-app.get('/api/packs/:viewerId', (req, res) => {
-  const rows = db.prepare(`
-    SELECT streamer_id, set_id, booster_type, quantite
-    FROM viewer_packs WHERE viewer_id = ? AND quantite > 0
-  `).all(req.params.viewerId)
-
+app.get('/api/packs/:viewerId', async (req, res) => {
+  const { rows } = await db.query(
+    'SELECT streamer_id, set_id, booster_type, quantite FROM viewer_packs WHERE viewer_id = $1 AND quantite > 0',
+    [req.params.viewerId]
+  )
   const inv = {}
   rows.forEach(r => {
     if (!inv[r.streamer_id]) inv[r.streamer_id] = {}
@@ -186,33 +184,33 @@ app.get('/api/packs/:viewerId', (req, res) => {
   res.json(inv)
 })
 
-app.post('/api/packs/:viewerId/add', (req, res) => {
+app.post('/api/packs/:viewerId/add', async (req, res) => {
   const { streamerId, setId, boosterType, quantite = 1 } = req.body
   if (!streamerId || !setId || !boosterType) return res.status(400).json({ error: 'champs manquants' })
 
-  db.prepare(`
+  await db.query(`
     INSERT INTO viewer_packs (viewer_id, streamer_id, set_id, booster_type, quantite)
-    VALUES (?, ?, ?, ?, ?)
+    VALUES ($1, $2, $3, $4, $5)
     ON CONFLICT (viewer_id, streamer_id, set_id, booster_type)
-    DO UPDATE SET quantite = quantite + excluded.quantite
-  `).run(req.params.viewerId, streamerId, setId, boosterType, quantite)
+    DO UPDATE SET quantite = viewer_packs.quantite + excluded.quantite
+  `, [req.params.viewerId, streamerId, setId, boosterType, quantite])
 
   res.json({ ok: true })
 })
 
-app.post('/api/packs/:viewerId/use', (req, res) => {
+app.post('/api/packs/:viewerId/use', async (req, res) => {
   const { streamerId, setId, boosterType } = req.body
-  const row = db.prepare(`
-    SELECT quantite FROM viewer_packs
-    WHERE viewer_id = ? AND streamer_id = ? AND set_id = ? AND booster_type = ?
-  `).get(req.params.viewerId, streamerId, setId, boosterType)
+  const { rows } = await db.query(
+    'SELECT quantite FROM viewer_packs WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3 AND booster_type = $4',
+    [req.params.viewerId, streamerId, setId, boosterType]
+  )
 
-  if (!row || row.quantite < 1) return res.status(400).json({ error: 'aucun pack dispo' })
+  if (!rows[0] || rows[0].quantite < 1) return res.status(400).json({ error: 'aucun pack dispo' })
 
-  db.prepare(`
-    UPDATE viewer_packs SET quantite = quantite - 1
-    WHERE viewer_id = ? AND streamer_id = ? AND set_id = ? AND booster_type = ?
-  `).run(req.params.viewerId, streamerId, setId, boosterType)
+  await db.query(
+    'UPDATE viewer_packs SET quantite = quantite - 1 WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3 AND booster_type = $4',
+    [req.params.viewerId, streamerId, setId, boosterType]
+  )
 
   res.json({ ok: true })
 })
@@ -252,7 +250,7 @@ function broadcast(viewerId, payload) {
 
 // webhook twitch
 
-app.post('/webhook', (req, res) => {
+app.post('/webhook', async (req, res) => {
   if (req.headers['twitch-eventsub-message-type'] === 'webhook_callback_verification') {
     return res.send(req.body.challenge)
   }
@@ -268,7 +266,6 @@ app.post('/webhook', (req, res) => {
   const streamer   = streamerId ? streamers[streamerId] : null
   if (!streamer) return res.sendStatus(200)
 
-  // trouver le set depuis le titre de la récompense, sinon prendre le premier
   const sets = Object.entries(streamer.sets)
   let [setId, setData] = sets[0] || []
 
@@ -278,21 +275,20 @@ app.post('/webhook', (req, res) => {
     }
   }
 
-  // type de booster selon le coût
   let boosterType = 'single'
-  const boosters = setData?.config?.boosters || {}
+  const boosters  = setData?.config?.boosters || {}
   if (boosters.display && cost >= boosters.display.cout) boosterType = 'display'
-  else if (boosters.pack && cost >= boosters.pack.cout) boosterType = 'pack'
+  else if (boosters.pack && cost >= boosters.pack.cout)  boosterType = 'pack'
 
   console.log(`${username} → ${cost}pts → ${streamerId}/${setId} (${boosterType})`)
 
   if (viewerId) {
-    db.prepare(`
+    await db.query(`
       INSERT INTO viewer_packs (viewer_id, streamer_id, set_id, booster_type, quantite)
-      VALUES (?, ?, ?, ?, 1)
+      VALUES ($1, $2, $3, $4, 1)
       ON CONFLICT (viewer_id, streamer_id, set_id, booster_type)
-      DO UPDATE SET quantite = quantite + 1
-    `).run(viewerId, streamerId, setId, boosterType)
+      DO UPDATE SET quantite = viewer_packs.quantite + 1
+    `, [viewerId, streamerId, setId, boosterType])
   }
 
   broadcast(viewerId, { type: 'pack_recu', booster: boosterType, streamerId, setId, utilisateur: username })
@@ -302,5 +298,16 @@ app.post('/webhook', (req, res) => {
 
 // démarrage
 
-https.createServer(ssl, app).listen(3000, () => console.log('https://localhost:3000'))
-http.createServer(app).listen(3001, () => console.log('http://localhost:3001 (twitch cli)'))
+initDB().then(() => {
+  if (prod) {
+    const port = process.env.PORT || 3000
+    http.createServer(app).listen(port, () => console.log(`http://localhost:${port}`))
+  } else {
+    const ssl = {
+      key:  fs.readFileSync('key.pem'),
+      cert: fs.readFileSync('cert.pem')
+    }
+    https.createServer(ssl, app).listen(3000, () => console.log('https://localhost:3000'))
+    http.createServer(app).listen(3001, () => console.log('http://localhost:3001 (twitch cli)'))
+  }
+})
