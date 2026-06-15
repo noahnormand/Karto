@@ -1,9 +1,9 @@
 {
   "id": "saison1",
-  "nom": "Saison 1",
-  "description": "",
+  "nom": "L'Ère de la Vapeur",
+  "description": "10 personnages steampunk à collectionner.",
   "date": "",
-  "couleur": "#1a7fd4",
+  "couleur": "#c8a84b",
   "boosters": {
     "single":  { "nom": "Booster",  "cout": 500,  "nb_cartes": 10, "garantie": null },
     "pack":    { "nom": "Pack x3",  "cout": 1200, "nb_cartes": 30, "garantie": "Épique" },

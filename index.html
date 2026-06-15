@@ -793,11 +793,26 @@ function afficherCollectionsGuest() {
     const div = document.createElement('div')
     div.className = 'border-r border-b border-primary p-gutter flex flex-col group cursor-pointer hover:bg-surface-container transition-colors'
     div.onclick   = connexionTwitch
-    const nbSets  = s.sets?.length || 0
+    const nbSets   = s.sets?.length || 0
+    const firstSet = s.sets?.[0]
+
+    const fan = firstSet ? `
+      <div style="position:relative;width:200px;height:160px;flex-shrink:0">
+        <img src="streamers/${s.id}/sets/${firstSet.id}/img/c01.png"
+             style="position:absolute;width:90px;height:126px;top:18px;left:0;transform:rotate(-10deg);box-shadow:4px 4px 12px rgba(0,0,0,.5);object-fit:cover;border-radius:4px"
+             onerror="this.style.display='none'">
+        <img src="streamers/${s.id}/sets/${firstSet.id}/img/c05.png"
+             style="position:absolute;width:90px;height:126px;top:4px;left:55px;transform:rotate(-1deg);box-shadow:4px 4px 12px rgba(0,0,0,.5);object-fit:cover;border-radius:4px;z-index:1"
+             onerror="this.style.display='none'">
+        <img src="streamers/${s.id}/sets/${firstSet.id}/img/c09.png"
+             style="position:absolute;width:90px;height:126px;top:18px;left:110px;transform:rotate(9deg);box-shadow:4px 4px 12px rgba(0,0,0,.5);object-fit:cover;border-radius:4px"
+             onerror="this.style.display='none'">
+      </div>` : `<span class="font-display text-h1 font-black opacity-15 uppercase tracking-tighter">${s.nom.charAt(0)}</span>`
+
     div.innerHTML = `
-      <div class="w-full aspect-[3/4] border border-primary mb-4 relative overflow-hidden flex items-center justify-center" style="background:${s.couleur||'#eee'}15">
-        <div class="absolute inset-0" style="background:${s.couleur||'#000'};opacity:.07"></div>
-        <span class="font-display text-h1 font-black opacity-15 uppercase tracking-tighter">${s.nom.charAt(0)}</span>
+      <div class="w-full border border-primary mb-4 relative overflow-hidden flex items-center justify-center py-10" style="background:${s.couleur||'#111'}12;min-height:200px">
+        <div class="absolute inset-0" style="background:${s.couleur||'#000'};opacity:.05"></div>
+        ${fan}
       </div>
       <div class="flex flex-col gap-unit mb-4">
         <div class="flex items-center gap-2">

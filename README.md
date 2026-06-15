@@ -1,127 +1,114 @@
-# Karto
+# Karto 🃏
 
-Ouvre des boosters de cartes virtuelles avec tes points de chaîne Twitch.
+Application web permettant aux viewers Twitch d'ouvrir des boosters virtuels de cartes à collectionner en échangeant leurs points de chaîne.
 
-Chaque streamer configure ses propres sets et cartes. Quand un viewer dépense ses points, il reçoit un pack dans son inventaire — il peut l'ouvrir quand il veut sur le site.
+## Fonctionnement
 
-**Live** → [karto-182e.onrender.com](https://karto-182e.onrender.com)
+1. Un viewer rachète une récompense de points de chaîne sur Twitch
+2. Twitch envoie un webhook à l'application
+3. L'application tire des cartes aléatoirement selon les taux de rareté du set
+4. Les cartes sont sauvegardées dans la collection du viewer
+5. Le viewer peut ouvrir son booster sur le site et consulter sa collection
 
----
+## Demo
+
+→ [karto-182e.onrender.com](https://karto-182e.onrender.com)
+
+Streamer de démo : **Karto Demo** — set *L'Ère de la Vapeur* (10 cartes steampunk)
 
 ## Stack
 
-- Node.js + Express
-- PostgreSQL (Neon)
-- Twitch OAuth (Implicit Grant) + EventSub webhooks
-- Tailwind CDN
+- **Frontend** : HTML/CSS/JS vanilla
+- **Backend** : Node.js + Express
+- **Base de données** : PostgreSQL (Neon)
+- **Hébergement** : Render
+- **Intégration** : Twitch EventSub (webhooks)
 
----
+## Structure des fichiers
 
-## Déploiement
-
-Hébergé sur [Render](https://render.com) (free tier) avec une base PostgreSQL [Neon](https://neon.tech) (free tier).
-
-Variables d'environnement requises :
 ```
-DATABASE_URL=postgresql://...
-NODE_ENV=production
+streamers/
+  {streamer_id}/
+    config.json          # Infos du streamer (nom, couleurs, twitch_login)
+    sets/
+      {set_id}/
+        config.json      # Infos du set (boosters, taux de rareté)
+        cards.json       # Liste des cartes
+        img/             # Images des cartes (c01.png, c02.png, ...)
+server.js                # Serveur Express
+register_eventsub.js     # Script d'enregistrement webhook Twitch (one-shot)
+index.html               # Interface utilisateur
 ```
 
----
+## Variables d'environnement
 
-## Lancer en local
+Créer un fichier `.env` à la racine :
+
+```env
+DATABASE_URL=           # PostgreSQL connection string
+WEBHOOK_SECRET=         # Secret HMAC pour vérifier les webhooks Twitch
+TWITCH_CLIENT_ID=       # Client ID de l'app Twitch (type Confidential)
+TWITCH_CLIENT_SECRET=   # Client Secret de l'app Twitch
+TWITCH_BROADCASTER_ID=  # ID Twitch du streamer
+```
+
+## Installation
 
 ```bash
 npm install
 node server.js
 ```
 
-Crée un fichier `.env` à la racine avec ta `DATABASE_URL` Neon.
+## Enregistrer le webhook Twitch
 
-Le serveur local tourne sur `https://localhost:3000` (HTTPS requis pour l'OAuth Twitch).  
-Génère les certificats auto-signés si besoin :
+Une fois l'app déployée et les variables d'environnement configurées :
 
 ```bash
-openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=localhost"
+node register_eventsub.js
 ```
 
----
+Ce script enregistre la souscription EventSub `channel.channel_points_custom_reward_redemption.add` pointant vers `/webhook`.
 
 ## Ajouter un streamer
 
-```
-streamers/
-  mon-streamer/
-    config.json
-    sets/
-      saison1/
-        config.json
-        cards.json
-        img/
-```
+1. Créer `streamers/{id}/config.json`
+2. Créer `streamers/{id}/sets/{set_id}/config.json` avec les boosters et rarités
+3. Créer `streamers/{id}/sets/{set_id}/cards.json` avec les cartes
+4. Placer les images dans `streamers/{id}/sets/{set_id}/img/`
 
-**`config.json` streamer**
+### Format config.json (streamer)
+
 ```json
 {
-  "id": "mon-streamer",
-  "nom": "Mon Streamer",
-  "couleur": "#ff6b00",
+  "id": "mon_streamer",
+  "nom": "Nom Affiché",
+  "couleur": "#c8a84b",
+  "couleur2": "#8b6914",
+  "description": "Description du set.",
   "twitch_login": "login_twitch"
 }
 ```
 
-**`config.json` set**
-```json
-{
-  "id": "saison1",
-  "nom": "Saison 1",
-  "couleur": "#ff6b00",
-  "boosters": {
-    "single": { "nom": "Booster", "cout": 500,  "nb_cartes": 10, "garantie": null },
-    "pack":   { "nom": "Pack x3", "cout": 1200, "nb_cartes": 30, "garantie": "Épique" }
-  },
-  "raretes": {
-    "Commun":     { "chance": 50, "couleur": "#8a9bb0" },
-    "Peu Commun": { "chance": 30, "couleur": "#4caf80" },
-    "Rare":       { "chance": 15, "couleur": "#4a90d9" },
-    "Épique":     { "chance": 4,  "couleur": "#9b59b6" },
-    "Légendaire": { "chance": 1,  "couleur": "#f0a500" }
-  }
-}
-```
+### Format cards.json
 
-**`cards.json`**
 ```json
 [
   {
     "id": "c01",
     "nom": "Nom de la carte",
-    "type": "Joueur",
+    "type": "Type",
     "rarete": "Rare",
-    "emoji": "⚡",
     "image": "c01.png",
-    "desc": "Description courte."
+    "cout": 3,
+    "pv": 60,
+    "attaque": 3,
+    "defense": 5,
+    "capacites": [
+      { "nom": "Nom capacité", "texte": "Effet de la capacité." }
+    ],
+    "citation": "« Citation de la carte. »"
   }
 ]
 ```
 
-Le champ `image` accepte un nom de fichier (dans `img/`), une URL externe, ou peut être omis (fallback sur l'emoji).
-
----
-
-## Webhook Twitch
-
-Pointe ton EventSub `channel.channel_points_custom_reward_redemption.add` vers `/webhook`.  
-En dev, utilise [ngrok](https://ngrok.com) ou la [Twitch CLI](https://github.com/twitchdev/twitch-cli) pour exposer le serveur local.
-
----
-
-## Ce qui n'est pas dans le repo
-
-```
-node_modules/
-karto.db
-key.pem
-cert.pem
-.env
-```
+Rarités disponibles : `Commun`, `Peu Commun`, `Rare`, `Épique`, `Légendaire`
