@@ -5,12 +5,16 @@ const https    = require('https')
 const http     = require('http')
 const fs       = require('fs')
 const path     = require('path')
+const crypto   = require('crypto')
 const { Pool } = require('pg')
 
-const app  = express()
-const prod = process.env.NODE_ENV === 'production'
+const app            = express()
+const prod           = process.env.NODE_ENV === 'production'
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || ''
 
-app.use(express.json())
+app.use(express.json({
+  verify: (req, _res, buf) => { req.rawBody = buf }
+}))
 app.use(express.static('.'))
 
 // streamers en mémoire : { test: { config, sets: { saison1: { config, cards } } } }
@@ -250,7 +254,24 @@ function broadcast(viewerId, payload) {
 
 // webhook twitch
 
+function verifyHmac(req) {
+  if (!WEBHOOK_SECRET) return true // pas de secret configuré = on laisse passer (dev)
+  const msgId     = req.headers['twitch-eventsub-message-id'] || ''
+  const timestamp = req.headers['twitch-eventsub-message-timestamp'] || ''
+  const sigHeader = req.headers['twitch-eventsub-message-signature'] || ''
+  const expected  = 'sha256=' + crypto.createHmac('sha256', WEBHOOK_SECRET)
+    .update(msgId + timestamp + (req.rawBody || ''))
+    .digest('hex')
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sigHeader))
+  } catch {
+    return false
+  }
+}
+
 app.post('/webhook', async (req, res) => {
+  if (!verifyHmac(req)) return res.sendStatus(403)
+
   if (req.headers['twitch-eventsub-message-type'] === 'webhook_callback_verification') {
     return res.send(req.body.challenge)
   }

@@ -448,7 +448,7 @@
   <div class="bg-surface border-2 border-primary w-full max-w-2xl flex flex-col md:flex-row relative"
        onclick="event.stopPropagation()">
     <div class="md:w-64 flex-shrink-0 border-b md:border-b-0 md:border-r border-primary flex items-center justify-center p-gutter bg-surface-container-low">
-      <div style="width:180px;height:252px" id="detailCarteWrap"></div>
+      <div style="width:210px;height:294px" id="detailCarteWrap"></div>
     </div>
     <div class="flex-1 flex flex-col">
       <div class="p-gutter border-b border-primary" style="padding-right:3.5rem">
@@ -462,6 +462,10 @@
       </div>
       <div class="border-b border-primary flex" id="detailStatsWrap">
         <div class="flex-1 p-4 border-r border-primary text-center">
+          <div class="font-mono-label text-mono-label text-outline uppercase mb-1">PV</div>
+          <div class="font-h2 text-h2 font-bold" id="detailPv"></div>
+        </div>
+        <div class="flex-1 p-4 border-r border-primary text-center">
           <div class="font-mono-label text-mono-label text-outline uppercase mb-1">ATK</div>
           <div class="font-h2 text-h2 font-bold" id="detailAtk"></div>
         </div>
@@ -470,8 +474,8 @@
           <div class="font-h2 text-h2 font-bold" id="detailDef"></div>
         </div>
         <div class="flex-1 p-4 text-center">
-          <div class="font-mono-label text-mono-label text-outline uppercase mb-1">SPD</div>
-          <div class="font-h2 text-h2 font-bold" id="detailSpd"></div>
+          <div class="font-mono-label text-mono-label text-outline uppercase mb-1">COÛT</div>
+          <div class="font-h2 text-h2 font-bold" id="detailCout"></div>
         </div>
       </div>
       <div class="p-gutter flex-1">
@@ -1004,6 +1008,7 @@ function toutOuvrir() {
   const grille = document.getElementById('grilleModal')
   grille.style.display = 'grid'; grille.innerHTML = ''
   const restantes = cartesEnCours.slice(indexCourant)
+  const delai = Math.max(16, Math.floor(2000 / restantes.length))
   let i = 0
   function next() {
     if (i >= restantes.length) {
@@ -1024,7 +1029,7 @@ function toutOuvrir() {
     document.getElementById('cartesDeja').appendChild(mini)
     document.getElementById('barreProgression').style.width = ((indexCourant+i+1)/cartesEnCours.length*100)+'%'
     document.getElementById('numCarte').textContent = indexCourant+i+1
-    i++; setTimeout(next, 120)
+    i++; setTimeout(next, delai)
   }
   next()
 }
@@ -1101,30 +1106,12 @@ function resolveImageUrl(c, streamerId, setId) {
 }
 
 function construireCarte(c, streamerId, setId) {
-  const sData = (streamerId && setId) ? setData[cleSet(streamerId, setId)] : null
-  const setNom = sData?.config?.nom || 'Karto'
-  const imgUrl = resolveImageUrl(c, streamerId || 'kc', setId || 'saison1')
-  const statsHTML = c.atk ? `
-    <div class="carte-stats-gauche"><div class="stat">${c.atk}</div><div class="stat">${c.def}</div></div>
-    <div class="carte-stat-droite"><div class="stat-spd">${c.spd}</div></div>` : ''
+  const imgUrl = resolveImageUrl(c, streamerId || 'test', setId || 'saison1')
   return `
-  <div class="carte" data-rarete="${c.rarete}">
-    <div class="carte-art">
-      <img src="${imgUrl}" alt="${c.nom}"
-           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
-      <div class="carte-art-fallback">${c.emoji||'🃏'}</div>
-    </div>
-    <div class="carte-degrade"></div>
-    <div class="coin coin-tl"></div><div class="coin coin-tr"></div>
-    <div class="coin coin-bl"></div><div class="coin coin-br"></div>
-    <div class="carte-icone-haut"></div>
-    ${statsHTML}
-    <div class="carte-infos">
-      <div class="carte-type">${c.type} · ${c.rarete}</div>
-      <div class="carte-nom">${c.nom}</div>
-      <div class="carte-desc">${c.desc}</div>
-      <div class="carte-footer"><span>${setNom}</span><span>✦</span><span>${c.id.toUpperCase()}</span></div>
-    </div>
+  <div class="carte" data-rarete="${c.rarete}" style="position:relative;width:100%;height:100%;overflow:hidden;">
+    <img src="${imgUrl}" alt="${c.nom}" style="width:100%;height:100%;object-fit:cover;display:block;"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+    <div style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-size:2.5em;background:#111;color:#555;">🃏</div>
   </div>`
 }
 
@@ -1139,14 +1126,23 @@ function voirCarte(id, streamerId, setId) {
 
   document.getElementById('detailCarteWrap').innerHTML = ''
   const div = document.createElement('div')
-  div.style.cssText = 'width:180px;height:252px;position:relative'
+  div.style.cssText = 'width:210px;height:294px;position:relative'
   div.innerHTML     = construireCarte(c, sId, seId)
   document.getElementById('detailCarteWrap').appendChild(div)
 
   document.getElementById('detailNom').textContent  = c.nom
   document.getElementById('detailType').textContent = c.type
-  document.getElementById('detailDesc').textContent = c.desc
   document.getElementById('detailId').textContent   = c.id.toUpperCase()
+
+  const descEl = document.getElementById('detailDesc')
+  if (c.capacites?.length) {
+    descEl.style.whiteSpace = 'pre-line'
+    descEl.textContent = c.capacites.map(cap => `⚙ ${cap.nom} : ${cap.texte}`).join('\n')
+    if (c.citation) descEl.textContent += `\n\n${c.citation}`
+  } else {
+    descEl.style.whiteSpace = ''
+    descEl.textContent = c.desc || ''
+  }
 
   const rarete = data.config.raretes[c.rarete] || { couleur:'#000' }
   const badge  = document.getElementById('detailRarete')
@@ -1154,11 +1150,12 @@ function voirCarte(id, streamerId, setId) {
   badge.style.borderColor = rarete.couleur + '70'; badge.style.background = rarete.couleur + '15'
 
   const statsWrap = document.getElementById('detailStatsWrap')
-  if (c.atk) {
+  if (c.pv !== undefined) {
     statsWrap.style.display = 'flex'
-    document.getElementById('detailAtk').textContent = c.atk
-    document.getElementById('detailDef').textContent = c.def
-    document.getElementById('detailSpd').textContent = c.spd
+    document.getElementById('detailPv').textContent  = c.pv
+    document.getElementById('detailAtk').textContent = c.attaque
+    document.getElementById('detailDef').textContent = c.defense
+    document.getElementById('detailCout').textContent = c.cout
   } else { statsWrap.style.display = 'none' }
 
   const nb  = collectionGlobale[sId]?.[seId]?.[id] || 0

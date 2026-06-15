@@ -1,36 +1,159 @@
 [
-  { "id": "k01", "nom": "Kameto",     "type": "Joueur", "rarete": "Légendaire", "emoji": "🎯", "desc": "Le fondateur visionnaire de la Karmine Corp.", "atk": 98, "def": 70, "spd": 90 },
-  { "id": "k02", "nom": "Saken",      "type": "Joueur", "rarete": "Légendaire", "emoji": "⚔️", "desc": "Jungler légendaire aux plays décisifs.", "atk": 95, "def": 75, "spd": 92 },
-
-  { "id": "k03", "nom": "Skyyart",    "type": "Joueur", "rarete": "Épique",     "emoji": "🚀", "desc": "Star du contenu et joueur d'exception.", "atk": 85, "def": 72, "spd": 88 },
-  { "id": "k04", "nom": "Caliste",    "type": "Joueur", "rarete": "Épique",     "emoji": "🌊", "desc": "Mid laner technique et précis.", "atk": 87, "def": 78, "spd": 82 },
-  { "id": "k05", "nom": "Gotaga",     "type": "Joueur", "rarete": "Épique",     "emoji": "🎮", "desc": "Légende FPS et pilier de la KC.", "atk": 92, "def": 65, "spd": 95 },
-
-  { "id": "k06", "nom": "Hantera",    "type": "Joueur", "rarete": "Rare",       "emoji": "🛡️", "desc": "Top laner solide comme un roc.", "atk": 70, "def": 95, "spd": 60 },
-  { "id": "k07", "nom": "RECK",       "type": "Joueur", "rarete": "Rare",       "emoji": "🔮", "desc": "Support visionnaire aux rotations décisives.", "atk": 65, "def": 80, "spd": 85 },
-  { "id": "k08", "nom": "Melo",       "type": "Joueur", "rarete": "Rare",       "emoji": "⚡", "desc": "ADC explosif, redouté pour ses dégâts.", "atk": 90, "def": 55, "spd": 88 },
-  { "id": "k09", "nom": "Alpha",      "type": "Joueur", "rarete": "Rare",       "emoji": "🦁", "desc": "Le nouveau venu qui a tout prouvé.", "atk": 82, "def": 68, "spd": 84 },
-
-  { "id": "k10", "nom": "Coach Blue", "type": "Joueur", "rarete": "Peu Commun", "emoji": "📋", "desc": "Stratège de l'ombre, chaque victoire porte son empreinte.", "atk": 60, "def": 85, "spd": 70 },
-  { "id": "k11", "nom": "Rekaz",      "type": "Joueur", "rarete": "Peu Commun", "emoji": "🎲", "desc": "Polyvalent et adaptable, capable de tout.", "atk": 72, "def": 72, "spd": 72 },
-  { "id": "k12", "nom": "Rookie KC",  "type": "Joueur", "rarete": "Commun",     "emoji": "🌱", "desc": "Le futur talent de la KC. Tout reste à écrire.", "atk": 55, "def": 55, "spd": 65 },
-
-  { "id": "e01", "nom": "Victoire LEC",       "type": "Event", "rarete": "Légendaire", "emoji": "🏆", "desc": "La consécration européenne." },
-  { "id": "e02", "nom": "KC vs G2 Final",     "type": "Event", "rarete": "Légendaire", "emoji": "⚡", "desc": "Le choc des titans, la finale la plus regardée du LEC." },
-  { "id": "e03", "nom": "Worlds 2023",        "type": "Event", "rarete": "Épique",     "emoji": "🌍", "desc": "La KC sur la scène mondiale." },
-  { "id": "e04", "nom": "Karto Launch",       "type": "Event", "rarete": "Épique",     "emoji": "🃏", "desc": "Le lancement du TCG officiel de la KC." },
-  { "id": "e05", "nom": "Premier LEC Win",    "type": "Event", "rarete": "Rare",       "emoji": "🥇", "desc": "La première victoire en LEC, les fondations d'une légende." },
-  { "id": "e06", "nom": "Superweek Parfaite", "type": "Event", "rarete": "Rare",       "emoji": "🔥", "desc": "Semaine sans défaite, la machine KC à son sommet." },
-  { "id": "e07", "nom": "Summer Split",       "type": "Event", "rarete": "Peu Commun", "emoji": "☀️", "desc": "Domination estivale." },
-  { "id": "e08", "nom": "Qualifier Win",      "type": "Event", "rarete": "Commun",     "emoji": "📍", "desc": "Une victoire de qualification solide." },
-
-  { "id": "o01", "nom": "Trophée KC",       "type": "Objet", "rarete": "Légendaire", "emoji": "🏅", "desc": "Le graal. Accorde +30 à toutes les stats." },
-  { "id": "o02", "nom": "Karmine Shield",   "type": "Objet", "rarete": "Épique",     "emoji": "🛡️", "desc": "Réduit de 40% les dégâts subis pendant 2 tours." },
-  { "id": "o03", "nom": "KC Jersey",        "type": "Objet", "rarete": "Épique",     "emoji": "👕", "desc": "Augmente la vitesse du porteur de 25 points." },
-  { "id": "o04", "nom": "Casque Blue",      "type": "Objet", "rarete": "Rare",       "emoji": "🎧", "desc": "+15 ATK lors des duels finaux." },
-  { "id": "o05", "nom": "Energy Drink KC",  "type": "Objet", "rarete": "Rare",       "emoji": "⚡", "desc": "Double la vitesse pendant un tour." },
-  { "id": "o06", "nom": "Badge Supporter",  "type": "Objet", "rarete": "Peu Commun", "emoji": "📛", "desc": "+10 DEF au joueur allié." },
-  { "id": "o07", "nom": "Lucky Charm",      "type": "Objet", "rarete": "Peu Commun", "emoji": "🍀", "desc": "Augmente les drops rares de 5%." },
-  { "id": "o08", "nom": "KC Flag",          "type": "Objet", "rarete": "Commun",     "emoji": "🚩", "desc": "Le fanion de la KC, symbole de fierté." },
-  { "id": "o09", "nom": "Mousepad KC",      "type": "Objet", "rarete": "Commun",     "emoji": "🖱️", "desc": "Légère hausse de l'ATK sur les attaques à distance." }
+  {
+    "id": "c01",
+    "nom": "Théodore Brassworth",
+    "type": "Inventeur",
+    "rarete": "Rare",
+    "image": "c01.png",
+    "cout": 3,
+    "pv": 60,
+    "attaque": 3,
+    "defense": 5,
+    "capacites": [
+      { "nom": "Automate Défensif", "texte": "+3 DEF jusqu'au prochain tour." },
+      { "nom": "Réparation d'urgence", "texte": "Récupère 25 PV." }
+    ],
+    "citation": "« Un ingénieur sans huile de coude n'est qu'un rêveur. »"
+  },
+  {
+    "id": "c02",
+    "nom": "Vesper l'Éclair",
+    "type": "Éclaireur",
+    "rarete": "Peu Commun",
+    "image": "c02.png",
+    "cout": 2,
+    "pv": 70,
+    "attaque": 6,
+    "defense": 2,
+    "capacites": [
+      { "nom": "Tir Fulgurant", "texte": "Inflige 15 dégâts directs." },
+      { "nom": "Esquive à la Vapeur", "texte": "Annule la prochaine attaque adverse." }
+    ],
+    "citation": "« Je tire avant que tu penses. »"
+  },
+  {
+    "id": "c03",
+    "nom": "Kor le Massif",
+    "type": "Gardien",
+    "rarete": "Commun",
+    "image": "c03.png",
+    "cout": 4,
+    "pv": 100,
+    "attaque": 4,
+    "defense": 7,
+    "capacites": [
+      { "nom": "Forteresse de Cuivre", "texte": "Bloque toutes les attaques ce tour." }
+    ],
+    "citation": "« L'acier ne plie pas. »"
+  },
+  {
+    "id": "c04",
+    "nom": "Lyra l'Alchimiste",
+    "type": "Alchimiste",
+    "rarete": "Épique",
+    "image": "c04.png",
+    "cout": 4,
+    "pv": 55,
+    "attaque": 7,
+    "defense": 3,
+    "capacites": [
+      { "nom": "Acide Corrosif", "texte": "Inflige 20 dégâts et réduit la DEF adverse de 2." },
+      { "nom": "Transmutation", "texte": "Transforme une carte ennemie en Commun." }
+    ],
+    "citation": "« La matière obéit à qui la comprend. »"
+  },
+  {
+    "id": "c05",
+    "nom": "Capitaine Drake",
+    "type": "Capitaine",
+    "rarete": "Légendaire",
+    "image": "c05.png",
+    "cout": 5,
+    "pv": 90,
+    "attaque": 8,
+    "defense": 6,
+    "capacites": [
+      { "nom": "Salve d'Acier", "texte": "Inflige 25 dégâts à toutes les unités adverses." },
+      { "nom": "Commandement", "texte": "+2 ATK à tous tes alliés jusqu'à la fin de la manche." }
+    ],
+    "citation": "« Remember my name. »"
+  },
+  {
+    "id": "c06",
+    "nom": "Mimi la Bricoleuse",
+    "type": "Inventeur",
+    "rarete": "Commun",
+    "image": "c06.png",
+    "cout": 1,
+    "pv": 50,
+    "attaque": 2,
+    "defense": 3,
+    "capacites": [
+      { "nom": "Gadget Fumigène", "texte": "Réduit l'ATK adverse de 3 pendant 2 tours." }
+    ],
+    "citation": "« J'ai une idée... »"
+  },
+  {
+    "id": "c07",
+    "nom": "Oswald le Traqueur",
+    "type": "Chasseur",
+    "rarete": "Rare",
+    "image": "c07.png",
+    "cout": 3,
+    "pv": 75,
+    "attaque": 7,
+    "defense": 2,
+    "capacites": [
+      { "nom": "Harpon Magnétique", "texte": "Immobilise une unité adverse pendant 1 tour." },
+      { "nom": "Tir Perforation", "texte": "Inflige 20 dégâts en ignorant la DEF." }
+    ],
+    "citation": "« Aucune proie ne m'a jamais échappé. »"
+  },
+  {
+    "id": "c08",
+    "nom": "Isolde Vapeur",
+    "type": "Alchimiste",
+    "rarete": "Peu Commun",
+    "image": "c08.png",
+    "cout": 3,
+    "pv": 65,
+    "attaque": 5,
+    "defense": 4,
+    "capacites": [
+      { "nom": "Brume Toxique", "texte": "Empoisonne l'adversaire : -10 PV par tour pendant 3 tours." },
+      { "nom": "Explosion Chimique", "texte": "Inflige 18 dégâts à une unité ciblée." }
+    ],
+    "citation": "« La vapeur est mon royaume. »"
+  },
+  {
+    "id": "c09",
+    "nom": "Bastian l'Acier",
+    "type": "Gardien",
+    "rarete": "Épique",
+    "image": "c09.png",
+    "cout": 5,
+    "pv": 110,
+    "attaque": 5,
+    "defense": 9,
+    "capacites": [
+      { "nom": "Blindage Intégral", "texte": "+5 DEF pendant 2 tours." },
+      { "nom": "Riposte", "texte": "Renvoie 50% des dégâts reçus à l'attaquant." }
+    ],
+    "citation": "« Tu frapperas l'acier. L'acier frappera en retour. »"
+  },
+  {
+    "id": "c10",
+    "nom": "Pip le Filou",
+    "type": "Éclaireur",
+    "rarete": "Commun",
+    "image": "c10.png",
+    "cout": 1,
+    "pv": 40,
+    "attaque": 3,
+    "defense": 1,
+    "capacites": [
+      { "nom": "Vol de Plans", "texte": "Pioche une carte de la main adverse." }
+    ],
+    "citation": "« Personne ne me voit venir. »"
+  }
 ]
