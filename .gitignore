@@ -3,6 +3,7 @@ karto.db
 key.pem
 cert.pem
 .env
+ENV_NOTES.md
 
 PROMPT_GEMINI_IMAGES.md
 dashboard.html
