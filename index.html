@@ -609,6 +609,7 @@ function basculerEtat(connecte) {
 
 let streamers         = []    // [{ id, nom, couleur, sets:[...] }]
 let setActif          = null  // { streamerId, setId } ou null
+let streamerActif     = null  // streamerId ou null
 let setData           = {}    // { "kc/saison1": { config, cards } }
 let collectionGlobale = {}    // { streamerId: { setId: { carteId: qty } } }
 let packsInventaire   = {}    // { streamerId: { setId: { boosterType: qty } } }
@@ -643,15 +644,16 @@ async function chargerSetData(streamerId, setId) {
 }
 
 
-function construireStreamerItems(suffix, onSetClick) {
+function construireStreamerItems(suffix, onSetClick, onStreamerClick) {
   return streamers.map(s => {
-    const estOuvert = setActif?.streamerId === s.id
+    const estOuvert   = setActif?.streamerId === s.id || streamerActif === s.id
+    const estStreamerActif = streamerActif === s.id && !setActif
     return `
       <div>
-        <button class="streamer-row${estOuvert ? ' ouvert' : ''}" id="streamer-row${suffix}-${s.id}" onclick="toggleStreamer('${s.id}','${suffix}')">
-          <div style="width:10px;height:10px;background:${s.couleur||'#000'};flex-shrink:0"></div>
-          <span>${s.nom}</span>
-          <span class="chevron">▶</span>
+        <button class="streamer-row${estOuvert ? ' ouvert' : ''}" id="streamer-row${suffix}-${s.id}">
+          <div style="width:10px;height:10px;background:${s.couleur||'#000'};flex-shrink:0;flex-shrink:0" onclick="${onStreamerClick}('${s.id}')"></div>
+          <span style="flex:1;text-align:left;${estStreamerActif?`font-weight:900`:''}" onclick="${onStreamerClick}('${s.id}')">${s.nom}</span>
+          <span class="chevron" onclick="toggleStreamer('${s.id}','${suffix}');event.stopPropagation()">▶</span>
         </button>
         <div class="sets-list${estOuvert ? ' visible' : ''}" id="sets${suffix}-${s.id}">
           ${(s.sets || []).map(set => `
@@ -670,16 +672,77 @@ function mettreAJourSidebar() {
   const desktop = document.getElementById('sidebarStreamers')
   const mobile  = document.getElementById('mobileDrawerStreamers')
 
-  if (desktop) desktop.innerHTML = construireStreamerItems('', 'selectionnerSet')
-  if (mobile)  mobile.innerHTML  = construireStreamerItems('-mob', 'selectionnerSetMobile')
+  if (desktop) desktop.innerHTML = construireStreamerItems('', 'selectionnerSet', 'selectionnerStreamer')
+  if (mobile)  mobile.innerHTML  = construireStreamerItems('-mob', 'selectionnerSetMobile', 'selectionnerStreamerMobile')
 
   const btnTout = document.getElementById('btnTouteCollection')
-  if (btnTout) btnTout.classList.toggle('bg-surface-variant', setActif === null)
+  if (btnTout) btnTout.classList.toggle('bg-surface-variant', setActif === null && streamerActif === null)
 }
 
 function selectionnerSetMobile(streamerId, setId) {
   fermerDrawer()
   selectionnerSet(streamerId, setId)
+}
+
+function selectionnerStreamer(streamerId) {
+  setActif      = null
+  streamerActif = streamerId
+  const streamer = streamers.find(s => s.id === streamerId)
+  document.getElementById('setActifBanner').style.display = 'none'
+  document.getElementById('shopSection').style.display    = 'none'
+  document.getElementById('collectionTitre').textContent  = streamer?.nom || streamerId
+  document.getElementById('progressionCollection').style.display = 'none'
+  filtreCourant = 'tous'
+  genererFiltres()
+  mettreAJourSidebar()
+  afficherCollectionStreamer(streamerId)
+}
+
+function selectionnerStreamerMobile(streamerId) {
+  fermerDrawer()
+  selectionnerStreamer(streamerId)
+}
+
+function afficherCollectionStreamer(streamerId) {
+  const ordre = ['Légendaire','Épique','Rare','Peu Commun','Commun']
+  const grille   = document.getElementById('grilleCartes')
+  const compteur = document.getElementById('compteurCollection')
+
+  let entrees = []
+  const sets = collectionGlobale[streamerId] || {}
+  for (const [setId, col] of Object.entries(sets)) {
+    const sData = setData[cleSet(streamerId, setId)]
+    const cards = sData?.cards || []
+    for (const [id, qty] of Object.entries(col)) {
+      const carte = cards.find(c => c.id === id)
+      if (carte) entrees.push({ carte, qty, streamerId, setId })
+    }
+  }
+
+  if (filtreCourant !== 'tous') {
+    entrees = entrees.filter(({ carte }) => carte.rarete === filtreCourant || carte.type === filtreCourant)
+  }
+  entrees.sort((a,b) => ordre.indexOf(a.carte.rarete) - ordre.indexOf(b.carte.rarete))
+
+  const total = entrees.reduce((acc,e) => acc + e.qty, 0)
+  compteur.textContent = total + ' carte' + (total > 1 ? 's' : '')
+
+  if (!entrees.length) {
+    grille.innerHTML = `<div class="dense-grid-item col-span-full p-12 text-center font-mono-label text-mono-label text-outline uppercase">Aucune carte ici pour l'instant.</div>`
+    return
+  }
+
+  grille.innerHTML = entrees.map(({ carte, qty, streamerId, setId }) => {
+    const sData    = setData[cleSet(streamerId, setId)]
+    const setNom   = sData?.config?.nom || setId
+    const setColor = sData?.config?.couleur || '#000'
+    return `<div class="dense-grid-item aspect-square relative cursor-pointer group hover:bg-surface-variant transition-colors"
+                 onclick="voirCarte('${carte.id}','${streamerId}','${setId}')">
+      ${construireCarte(carte, streamerId, setId)}
+      ${qty > 1 ? `<div class="absolute top-1 right-1 border border-primary bg-surface font-mono-label text-[10px] px-1 z-10">×${qty}</div>` : ''}
+      <div class="absolute bottom-0 left-0 right-0 px-1 py-px text-center" style="font-size:7px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:${setColor};color:#fff;opacity:.85">${setNom}</div>
+    </div>`
+  }).join('')
 }
 
 function toggleStreamer(streamerId, suffix) {
@@ -696,7 +759,8 @@ function toggleStreamer(streamerId, suffix) {
 
 
 async function selectionnerSet(streamerId, setId) {
-  setActif = { streamerId, setId }
+  setActif      = { streamerId, setId }
+  streamerActif = null
   const data     = await chargerSetData(streamerId, setId)
   const streamer = streamers.find(s => s.id === streamerId)
   const set      = streamer?.sets?.find(s => s.id === setId)
@@ -1046,7 +1110,8 @@ function toutOuvrir() {
 function filtrer(valeur, bouton) {
   filtreCourant = valeur
   genererFiltres()
-  afficherCollection()
+  if (streamerActif && !setActif) afficherCollectionStreamer(streamerActif)
+  else afficherCollection()
 }
 
 function genererFiltres() {
