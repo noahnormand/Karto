@@ -296,10 +296,11 @@ app.post('/webhook', async (req, res) => {
     }
   }
 
-  let boosterType = 'single'
-  const boosters  = setData?.config?.boosters || {}
-  if (boosters.display && cost >= boosters.display.cout) boosterType = 'display'
-  else if (boosters.pack && cost >= boosters.pack.cout)  boosterType = 'pack'
+  const boosters = setData?.config?.boosters || {}
+  // Trie les boosters par coût décroissant, prend le plus cher que le viewer peut s'offrir
+  const sorted = Object.entries(boosters).sort(([,a],[,b]) => b.cout - a.cout)
+  const match  = sorted.find(([,b]) => cost >= b.cout)
+  const boosterType = match ? match[0] : (sorted[sorted.length - 1]?.[0] || 'single')
 
   console.log(`${username} → ${cost}pts → ${streamerId}/${setId} (${boosterType})`)
 

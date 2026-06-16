@@ -1,114 +1,33 @@
-# Karto 🃏
+# Karto
 
-Application web permettant aux viewers Twitch d'ouvrir des boosters virtuels de cartes à collectionner en échangeant leurs points de chaîne.
+Karto permet aux viewers Twitch d'ouvrir des boosters virtuels de cartes à collectionner en échangeant leurs points de chaîne.
 
-## Fonctionnement
+Chaque streamer partenaire dispose de son propre set de cartes. Quand un viewer rachète la récompense sur Twitch, il reçoit un booster dans son inventaire  -  il peut l'ouvrir quand il veut sur le site, découvrir ses cartes et consulter sa collection.
 
-1. Un viewer rachète une récompense de points de chaîne sur Twitch
-2. Twitch envoie un webhook à l'application
-3. L'application tire des cartes aléatoirement selon les taux de rareté du set
-4. Les cartes sont sauvegardées dans la collection du viewer
-5. Le viewer peut ouvrir son booster sur le site et consulter sa collection
+**→ [karto-182e.onrender.com](https://karto-182e.onrender.com)**
 
-## Demo
+---
 
-→ [karto-182e.onrender.com](https://karto-182e.onrender.com)
+## C'est quoi exactement ?
 
-Streamer de démo : **Karto Demo** — set *L'Ère de la Vapeur* (10 cartes steampunk)
+Un viewer regarde un stream, accumule des points de chaîne Twitch, et peut les dépenser pour ouvrir un booster de cartes propres au streamer. Les cartes ont des raretés (Commun, Peu Commun, Rare, Épique, Légendaire), des stats et des capacités. Le viewer retrouve toutes ses cartes dans sa collection sur le site.
 
-## Stack
+Chaque streamer a son univers : ses propres cartes, son propre set, ses propres personnages.
 
-- **Frontend** : HTML/CSS/JS vanilla
-- **Backend** : Node.js + Express
-- **Base de données** : PostgreSQL (Neon)
-- **Hébergement** : Render
-- **Intégration** : Twitch EventSub (webhooks)
+---
 
-## Structure des fichiers
+## Streamers partenaires
 
-```
-streamers/
-  {streamer_id}/
-    config.json          # Infos du streamer (nom, couleurs, twitch_login)
-    sets/
-      {set_id}/
-        config.json      # Infos du set (boosters, taux de rareté)
-        cards.json       # Liste des cartes
-        img/             # Images des cartes (c01.png, c02.png, ...)
-server.js                # Serveur Express
-register_eventsub.js     # Script d'enregistrement webhook Twitch (one-shot)
-index.html               # Interface utilisateur
-```
+Pour l'instant le projet est en phase de développement avec un set de démonstration  -  univers steampunk, 10 cartes à collectionner.
 
-## Variables d'environnement
+Si tu es streamer et que tu veux rejoindre Karto avec ton propre set, contacte-nous.
 
-Créer un fichier `.env` à la racine :
+---
 
-```env
-DATABASE_URL=           # PostgreSQL connection string
-WEBHOOK_SECRET=         # Secret HMAC pour vérifier les webhooks Twitch
-TWITCH_CLIENT_ID=       # Client ID de l'app Twitch (type Confidential)
-TWITCH_CLIENT_SECRET=   # Client Secret de l'app Twitch
-TWITCH_BROADCASTER_ID=  # ID Twitch du streamer
-```
+## Stack technique
 
-## Installation
-
-```bash
-npm install
-node server.js
-```
-
-## Enregistrer le webhook Twitch
-
-Une fois l'app déployée et les variables d'environnement configurées :
-
-```bash
-node register_eventsub.js
-```
-
-Ce script enregistre la souscription EventSub `channel.channel_points_custom_reward_redemption.add` pointant vers `/webhook`.
-
-## Ajouter un streamer
-
-1. Créer `streamers/{id}/config.json`
-2. Créer `streamers/{id}/sets/{set_id}/config.json` avec les boosters et rarités
-3. Créer `streamers/{id}/sets/{set_id}/cards.json` avec les cartes
-4. Placer les images dans `streamers/{id}/sets/{set_id}/img/`
-
-### Format config.json (streamer)
-
-```json
-{
-  "id": "mon_streamer",
-  "nom": "Nom Affiché",
-  "couleur": "#c8a84b",
-  "couleur2": "#8b6914",
-  "description": "Description du set.",
-  "twitch_login": "login_twitch"
-}
-```
-
-### Format cards.json
-
-```json
-[
-  {
-    "id": "c01",
-    "nom": "Nom de la carte",
-    "type": "Type",
-    "rarete": "Rare",
-    "image": "c01.png",
-    "cout": 3,
-    "pv": 60,
-    "attaque": 3,
-    "defense": 5,
-    "capacites": [
-      { "nom": "Nom capacité", "texte": "Effet de la capacité." }
-    ],
-    "citation": "« Citation de la carte. »"
-  }
-]
-```
-
-Rarités disponibles : `Commun`, `Peu Commun`, `Rare`, `Épique`, `Légendaire`
+- Node.js + Express (backend)
+- PostgreSQL via Neon (base de données)
+- Twitch EventSub (webhooks points de chaîne)
+- HTML/CSS/JS vanilla (frontend)
+- Hébergé sur Render
