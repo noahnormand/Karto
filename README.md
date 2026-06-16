@@ -2,32 +2,54 @@
 
 Karto permet aux viewers Twitch d'ouvrir des boosters virtuels de cartes à collectionner en échangeant leurs points de chaîne.
 
-Chaque streamer partenaire dispose de son propre set de cartes. Quand un viewer rachète la récompense sur Twitch, il reçoit un booster dans son inventaire  -  il peut l'ouvrir quand il veut sur le site, découvrir ses cartes et consulter sa collection.
+Chaque streamer partenaire a son propre univers - ses cartes, ses personnages, ses raretés. Un viewer accumule des points sur Twitch, rachète une récompense, et reçoit un booster à ouvrir sur le site quand il veut.
 
-**→ [karto-182e.onrender.com](https://karto-182e.onrender.com)**
-
----
-
-## C'est quoi exactement ?
-
-Un viewer regarde un stream, accumule des points de chaîne Twitch, et peut les dépenser pour ouvrir un booster de cartes propres au streamer. Les cartes ont des raretés (Commun, Peu Commun, Rare, Épique, Légendaire), des stats et des capacités. Le viewer retrouve toutes ses cartes dans sa collection sur le site.
-
-Chaque streamer a son univers : ses propres cartes, son propre set, ses propres personnages.
+**karto-182e.onrender.com**
 
 ---
 
-## Streamers partenaires
+## Comment ça marche
 
-Pour l'instant le projet est en phase de développement avec un set de démonstration  -  univers steampunk, 10 cartes à collectionner.
-
-Si tu es streamer et que tu veux rejoindre Karto avec ton propre set, contacte-nous.
+1. Le viewer rachète une récompense de points de chaîne sur Twitch
+2. Karto reçoit la notification en temps réel via Twitch EventSub
+3. Un booster apparaît dans l'inventaire du viewer
+4. Le viewer ouvre son booster sur le site - les cartes sont révélées une par une
+5. Les cartes s'ajoutent à sa collection, consultable à tout moment
 
 ---
 
-## Stack technique
+## Fonctionnalités
 
-- Node.js + Express (backend)
-- PostgreSQL via Neon (base de données)
-- Twitch EventSub (webhooks points de chaîne)
-- HTML/CSS/JS vanilla (frontend)
-- Hébergé sur Render
+- Ouverture de boosters animée avec révélation carte par carte
+- Collection personnelle avec filtres par rareté
+- Vue par streamer et par série
+- Cartes non possédées affichées en silhouette
+- Progression du set (x/total cartes)
+- Notifications temps réel - le booster arrive sans refresh de page
+- Support multi-streamers et multi-sets
+
+---
+
+## Stack
+
+- Node.js + Express
+- PostgreSQL - Neon
+- Twitch EventSub webhooks
+- HTML/CSS/JS vanilla
+- Render
+
+---
+
+## Ajouter un streamer
+
+```bash
+node add_streamer.js <twitch_login>
+```
+
+Le script ouvre une page d'autorisation Twitch, récupère les récompenses du streamer, et enregistre le webhook automatiquement.
+
+Créer ensuite le dossier `streamers/<id>/` avec :
+- `config.json` - nom, couleurs, login Twitch
+- `sets/<set_id>/config.json` - boosters, raretés
+- `sets/<set_id>/cards.json` - liste des cartes
+- `sets/<set_id>/img/` - images des cartes
