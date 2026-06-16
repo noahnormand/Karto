@@ -349,16 +349,15 @@
 
     <!-- Collection -->
     <section id="collectionSection" class="flex-1 flex flex-col bg-background">
-      <div class="px-margin-mobile md:px-margin-desktop py-4 border-b border-primary flex items-center justify-between">
+      <div class="px-margin-mobile md:px-margin-desktop py-4 border-b border-primary flex items-center justify-between gap-4">
         <h2 class="font-h2 text-h2 uppercase" id="collectionTitre">Ma collection</h2>
-        <span class="font-mono-label text-mono-label text-outline" id="compteurCollection">0 carte</span>
+        <div class="flex items-center gap-3 flex-shrink-0">
+          <span class="font-mono-label text-mono-label text-outline" id="compteurCollection">0 carte</span>
+          <span class="font-mono-label text-mono-label text-outline" id="progressionCollection" style="display:none"></span>
+        </div>
       </div>
-      <div class="flex border-b border-primary overflow-x-auto hide-scrollbar">
+      <div class="flex border-b border-primary overflow-x-auto hide-scrollbar" id="filtresCollection">
         <button class="px-gutter py-margin-mobile font-label-caps text-label-caps uppercase whitespace-nowrap bg-primary text-on-primary border-r border-primary" onclick="filtrer('tous',this)">Toutes</button>
-        <button class="px-gutter py-margin-mobile font-label-caps text-label-caps uppercase whitespace-nowrap text-primary border-r border-primary hover:bg-surface-variant" onclick="filtrer('Joueur',this)">Joueurs</button>
-        <button class="px-gutter py-margin-mobile font-label-caps text-label-caps uppercase whitespace-nowrap text-primary border-r border-primary hover:bg-surface-variant" onclick="filtrer('Event',this)">Événements</button>
-        <button class="px-gutter py-margin-mobile font-label-caps text-label-caps uppercase whitespace-nowrap text-primary border-r border-primary hover:bg-surface-variant" onclick="filtrer('Objet',this)">Objets</button>
-        <button class="px-gutter py-margin-mobile font-label-caps text-label-caps uppercase whitespace-nowrap text-primary hover:bg-surface-variant" onclick="filtrer('Légendaire',this)">Légendaires</button>
       </div>
       <div class="dense-grid m-margin-mobile md:m-margin-desktop mb-0" id="grilleCartes"></div>
     </section>
@@ -725,6 +724,8 @@ async function selectionnerSet(streamerId, setId) {
 
   // Collection
   document.getElementById('collectionTitre').textContent = data.config.nom
+  filtreCourant = 'tous'
+  genererFiltres()
   afficherCollection()
 }
 
@@ -1044,26 +1045,80 @@ function toutOuvrir() {
 
 function filtrer(valeur, bouton) {
   filtreCourant = valeur
-  document.querySelectorAll('[onclick^="filtrer"]').forEach(b => {
-    b.classList.remove('bg-primary','text-on-primary'); b.classList.add('text-primary')
-  })
-  bouton.classList.add('bg-primary','text-on-primary'); bouton.classList.remove('text-primary')
+  genererFiltres()
   afficherCollection()
+}
+
+function genererFiltres() {
+  const bar = document.getElementById('filtresCollection')
+  if (!bar) return
+
+  // Toujours garder le bouton "Toutes"
+  const actif = filtreCourant
+  let html = `<button class="px-gutter py-margin-mobile font-label-caps text-label-caps uppercase whitespace-nowrap border-r border-primary ${actif==='tous'?'bg-primary text-on-primary':'text-primary hover:bg-surface-variant'}" onclick="filtrer('tous',this)">Toutes</button>`
+
+  if (setActif) {
+    const { streamerId, setId } = setActif
+    const sData = setData[cleSet(streamerId, setId)]
+    const raretes = sData?.config?.raretes || {}
+    const ordre = ['Légendaire','Épique','Rare','Peu Commun','Commun']
+    const raretesTri = Object.keys(raretes).sort((a,b) => ordre.indexOf(a) - ordre.indexOf(b))
+    raretesTri.forEach(r => {
+      const couleur = raretes[r]?.couleur || '#000'
+      const isActif = actif === r
+      html += `<button class="px-gutter py-margin-mobile font-label-caps text-label-caps uppercase whitespace-nowrap border-r border-primary ${isActif?'text-on-primary':'text-primary hover:bg-surface-variant'}" style="${isActif?`background:${couleur}`:`color:${couleur}`}" onclick="filtrer('${r}',this)">${r}</button>`
+    })
+  }
+
+  bar.innerHTML = html
 }
 
 function afficherCollection() {
   const ordre  = ['Légendaire','Épique','Rare','Peu Commun','Commun']
-  let entrees  = []  // [{ carte, qty, streamerId, setId }]
+
+  const grille    = document.getElementById('grilleCartes')
+  const compteur  = document.getElementById('compteurCollection')
+  const progress  = document.getElementById('progressionCollection')
 
   if (setActif) {
     const { streamerId, setId } = setActif
-    const colSet  = collectionGlobale[streamerId]?.[setId] || {}
-    const cards   = setData[cleSet(streamerId, setId)]?.cards || []
-    entrees = Object.entries(colSet).map(([id, qty]) => ({
-      carte: cards.find(c => c.id === id), qty, streamerId, setId
-    })).filter(e => e.carte)
+    const sData  = setData[cleSet(streamerId, setId)]
+    const colSet = collectionGlobale[streamerId]?.[setId] || {}
+    const toutes = sData?.cards || []
+
+    // Progression unique
+    const possedees = toutes.filter(c => colSet[c.id] > 0).length
+    if (progress) {
+      progress.textContent = `${possedees}/${toutes.length}`
+      progress.style.display = ''
+    }
+
+    let entrees = toutes.map(c => ({ carte: c, qty: colSet[c.id] || 0, streamerId, setId }))
+
+    if (filtreCourant !== 'tous') {
+      entrees = entrees.filter(({ carte }) => carte.rarete === filtreCourant || carte.type === filtreCourant)
+    }
+    entrees.sort((a,b) => ordre.indexOf(a.carte.rarete) - ordre.indexOf(b.carte.rarete))
+
+    const totalExemplaires = entrees.reduce((acc,e) => acc + e.qty, 0)
+    compteur.textContent = totalExemplaires + ' exemplaire' + (totalExemplaires > 1 ? 's' : '')
+
+    grille.innerHTML = entrees.map(({ carte, qty }) => {
+      const possede = qty > 0
+      return `<div class="dense-grid-item aspect-square relative ${possede ? 'cursor-pointer hover:bg-surface-variant' : 'cursor-default'} group transition-colors"
+                   ${possede ? `onclick="voirCarte('${carte.id}','${streamerId}','${setId}')"` : ''}>
+        <div style="${possede ? '' : 'filter:grayscale(1) brightness(.3);pointer-events:none'}">
+          ${construireCarte(carte, streamerId, setId)}
+        </div>
+        ${qty > 1 ? `<div class="absolute top-1 right-1 border border-primary bg-surface font-mono-label text-[10px] px-1 z-10">×${qty}</div>` : ''}
+        ${!possede ? `<div class="absolute inset-0 flex items-center justify-center"><span style="font-size:1.5em;opacity:.4">🔒</span></div>` : ''}
+      </div>`
+    }).join('')
+
   } else {
-    // Tout agréger
+    // Vue globale toutes collections
+    if (progress) progress.style.display = 'none'
+    let entrees = []
     for (const [streamerId, sets] of Object.entries(collectionGlobale)) {
       for (const [setId, col] of Object.entries(sets)) {
         const cards = setData[cleSet(streamerId, setId)]?.cards || []
@@ -1073,36 +1128,30 @@ function afficherCollection() {
         }
       }
     }
+    if (filtreCourant !== 'tous') {
+      entrees = entrees.filter(({ carte }) => carte.rarete === filtreCourant || carte.type === filtreCourant)
+    }
+    entrees.sort((a,b) => ordre.indexOf(a.carte.rarete) - ordre.indexOf(b.carte.rarete))
+    const total = entrees.reduce((acc,e) => acc + e.qty, 0)
+    compteur.textContent = total + ' carte' + (total > 1 ? 's' : '')
+
+    if (!entrees.length) {
+      grille.innerHTML = `<div class="dense-grid-item col-span-full p-12 text-center font-mono-label text-mono-label text-outline uppercase">Aucune carte ici pour l'instant.</div>`
+      return
+    }
+
+    grille.innerHTML = entrees.map(({ carte, qty, streamerId, setId }) => {
+      const sData    = setData[cleSet(streamerId, setId)]
+      const setNom   = sData?.config?.nom || setId
+      const setColor = sData?.config?.couleur || '#000'
+      return `<div class="dense-grid-item aspect-square relative cursor-pointer group hover:bg-surface-variant transition-colors"
+                   onclick="voirCarte('${carte.id}','${streamerId}','${setId}')">
+        ${construireCarte(carte, streamerId, setId)}
+        ${qty > 1 ? `<div class="absolute top-1 right-1 border border-primary bg-surface font-mono-label text-[10px] px-1 z-10">×${qty}</div>` : ''}
+        <div class="absolute bottom-0 left-0 right-0 px-1 py-px text-center" style="font-size:7px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:${setColor};color:#fff;opacity:.85">${setNom}</div>
+      </div>`
+    }).join('')
   }
-
-  if (filtreCourant !== 'tous') {
-    entrees = entrees.filter(({ carte }) => carte.type === filtreCourant || carte.rarete === filtreCourant)
-  }
-  entrees.sort((a, b) => ordre.indexOf(a.carte.rarete) - ordre.indexOf(b.carte.rarete))
-
-  const total = entrees.reduce((acc, e) => acc + e.qty, 0)
-  document.getElementById('compteurCollection').textContent = total + ' carte' + (total > 1 ? 's' : '')
-
-  const grille = document.getElementById('grilleCartes')
-  if (!entrees.length) {
-    grille.innerHTML = `<div class="dense-grid-item col-span-full p-12 text-center font-mono-label text-mono-label text-outline uppercase">Aucune carte ici pour l'instant.</div>`
-    return
-  }
-
-  grille.innerHTML = entrees.map(({ carte, qty, streamerId, setId }) => {
-    const sData = setData[cleSet(streamerId, setId)]
-    const setNom = sData?.config?.nom || setId
-    const setColor = sData?.config?.couleur || '#000'
-    const badge = !setActif
-      ? `<div class="absolute bottom-0 left-0 right-0 px-1 py-px text-center" style="font-size:7px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:${setColor};color:#fff;opacity:.85">${setNom}</div>`
-      : ''
-    return `<div class="dense-grid-item aspect-square relative cursor-pointer group hover:bg-surface-variant transition-colors"
-                 onclick="voirCarte('${carte.id}','${streamerId}','${setId}')">
-      ${construireCarte(carte, streamerId, setId)}
-      ${qty > 1 ? `<div class="absolute top-1 right-1 border border-primary bg-surface font-mono-label text-[10px] px-1 z-10">×${qty}</div>` : ''}
-      ${badge}
-    </div>`
-  }).join('')
 }
 
 
