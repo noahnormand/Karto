@@ -310,14 +310,6 @@
   <main class="flex-1 flex flex-col min-w-0">
 
     <!-- barre test (Ctrl+Shift+D) -->
-    <div id="testBar" class="border-b border-primary bg-surface-container-low px-4 md:px-margin-desktop py-unit flex gap-2 md:gap-3 items-center overflow-x-auto hide-scrollbar" style="font-size:11px;min-height:36px;display:none">
-      <span class="font-mono-label text-mono-label text-outline uppercase flex-shrink-0">Test</span>
-      <span class="font-mono-label text-mono-label text-outline flex-shrink-0" style="font-size:9px">+PACK :</span>
-      <button onclick="testAjouterPack('single')"  class="test-bar-btn font-mono-label text-mono-label border border-primary px-2 py-px hover:bg-surface-variant flex-shrink-0">Booster</button>
-      <button onclick="testAjouterPack('pack')"    class="test-bar-btn font-mono-label text-mono-label border border-primary px-2 py-px hover:bg-surface-variant flex-shrink-0">Pack</button>
-      <button onclick="testAjouterPack('display')" class="test-bar-btn font-mono-label text-mono-label border border-primary px-2 py-px hover:bg-surface-variant flex-shrink-0">Display</button>
-      <button onclick="reinitialiser()" class="test-bar-btn font-mono-label text-mono-label border border-primary px-2 py-px flex-shrink-0 ml-auto" style="color:#c00;border-color:#fcc">Reset</button>
-    </div>
 
     <!-- Invite à sélectionner un set (mobile, aucun set actif) -->
     <div id="inviteSet" class="lg:hidden border-b border-primary px-4 py-6 flex items-center gap-4 bg-surface-container-low" style="display:none!important">
@@ -1195,30 +1187,6 @@ function mettreAJourPoints() {
   document.getElementById('badgePointsWrap').style.display = 'none'
 }
 
-function testAjouterPack(boosterId) {
-  if (!setActif) return toast('Sélectionne un set d\'abord', 'rouge')
-  const { streamerId, setId } = setActif
-  const config  = setData[cleSet(streamerId, setId)]?.config
-  const booster = config?.boosters?.[boosterId]
-  if (!booster) return
-  recevoirPack(streamerId, setId, boosterId)
-  toast(`+1 ${booster.nom}`)
-}
-
-function reinitialiser() {
-  if (setActif) {
-    const { streamerId, setId } = setActif
-    if (packsInventaire[streamerId]) packsInventaire[streamerId][setId] = {}
-    if (collectionGlobale[streamerId]) collectionGlobale[streamerId][setId] = {}
-    const config = setData[cleSet(streamerId, setId)]?.config
-    if (config) afficherBoutique(config, null)
-  } else {
-    packsInventaire   = {}
-    collectionGlobale = {}
-  }
-  afficherCollection()
-  toast('Réinitialisé')
-}
 
 
 function connecterServeur() {
@@ -1296,10 +1264,6 @@ async function init() {
   await autoSelectPremierSet()
 }
 
-if (new URLSearchParams(location.search).get('debug') === '1') {
-  const bar = document.getElementById('testBar')
-  if (bar) bar.style.display = ''
-}
 
 init()
 </script>
