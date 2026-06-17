@@ -565,6 +565,18 @@ async function chargerCollectionGlobale(viewerId) {
     collectionGlobale = col
     packsInventaire   = packs
     essenceGlobale    = ess
+
+    // Charger le setData de tous les sets présents dans la collection/packs
+    const setsACharger = new Set()
+    for (const [sid, sets] of Object.entries(col))
+      for (const setId of Object.keys(sets)) setsACharger.add(`${sid}|${setId}`)
+    for (const [sid, sets] of Object.entries(packs))
+      for (const setId of Object.keys(sets)) setsACharger.add(`${sid}|${setId}`)
+    await Promise.all([...setsACharger].map(k => {
+      const [sid, setId] = k.split('|')
+      return chargerSetData(sid, setId)
+    }))
+
     afficherCollection()
     if (setActif) afficherBoutique(setData[cleSet(setActif.streamerId, setActif.setId)]?.config, null)
   } catch (e) { console.error(e) }
