@@ -1259,26 +1259,24 @@ function afficherCollection() {
     }
     if (filtreCourant !== 'tous') {
       entrees = entrees.filter(({ carte }) => carte.rarete === filtreCourant || carte.type === filtreCourant)
-    }
     entrees.sort((a,b) => ordre.indexOf(a.carte.rarete) - ordre.indexOf(b.carte.rarete))
 
     const total = entrees.reduce((acc,e) => acc + e.qty, 0)
-    compteur.textContent = total + ' carte' + (total > 1 ? 's' : '')
+    compteur.textContent = total + ' exemplaire' + (total > 1 ? 's' : '')
 
     if (!entrees.length) {
-      grille.innerHTML = `<div class="dense-grid-item col-span-full p-12 text-center font-mono-label text-mono-label text-outline uppercase">Aucune carte dans ta collection.</div>`
+      grille.innerHTML = '<div class="col-span-full text-center text-secondary py-12">Aucune carte dans ta collection.</div>'
       return
     }
 
     grille.innerHTML = entrees.map(({ carte, qty, streamerId, setId }) => {
-      const sData    = setData[cleSet(streamerId, setId)]
-      const setNom   = sData?.config?.nom || setId
-      const setColor = sData?.config?.couleur || '#000'
-      return `<div class="dense-grid-item aspect-square relative cursor-pointer group hover:bg-surface-variant transition-colors"
+      const possede = qty > 0
+      return `<div class="dense-grid-item aspect-square relative cursor-pointer hover:bg-surface-variant group transition-colors"
                    onclick="voirCarte('${carte.id}','${streamerId}','${setId}')">
-        ${construireCarte(carte, streamerId, setId)}
+        <div>
+          ${construireCarte(carte, streamerId, setId)}
+        </div>
         ${qty > 1 ? `<div class="absolute top-1 right-1 border border-primary bg-surface font-mono-label text-[10px] px-1 z-10">×${qty}</div>` : ''}
-        <div class="absolute bottom-0 left-0 right-0 px-1 py-px text-center" style="font-size:7px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:${setColor};color:#fff;opacity:.85">${setNom}</div>
       </div>`
     }).join('')
   }
@@ -1288,5 +1286,3 @@ verifierConnexion()
 </script>
 </body>
 </html>
-    }
-    entrees.sort((a,b) => ordre.indexOf(a.carte.rarete) 
