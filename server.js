@@ -11,8 +11,35 @@ const { Pool } = require('pg')
 const app            = express()
 const prod           = process.env.NODE_ENV === 'production'
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || ''
-const TWITCH_CLIENT_ID    = process.env.TWITCH_CLIENT_ID || ''
-const TWITCH_USER_TOKEN   = process.env.TWITCH_USER_TOKEN || ''
+const TWITCH_CLIENT_ID     = process.env.TWITCH_CLIENT_ID     || ''
+const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET || ''
+let   twitchUserToken      = process.env.TWITCH_USER_TOKEN    || ''
+let   twitchRefreshToken   = process.env.TWITCH_REFRESH_TOKEN || ''
+
+async function refreshTwitchToken() {
+  if (!twitchRefreshToken) return false
+  try {
+    const res = await fetch('https://id.twitch.tv/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type:    'refresh_token',
+        refresh_token: twitchRefreshToken,
+        client_id:     TWITCH_CLIENT_ID,
+        client_secret: TWITCH_CLIENT_SECRET
+      })
+    })
+    const data = await res.json()
+    if (!data.access_token) { console.log('Refresh token invalide:', data); return false }
+    twitchUserToken    = data.access_token
+    twitchRefreshToken = data.refresh_token || twitchRefreshToken
+    console.log('Token Twitch renouvelé automatiquement.')
+    return true
+  } catch(e) {
+    console.log('Erreur refresh token:', e.message)
+    return false
+  }
+}
 
 app.use(express.json({
   verify: (req, _res, buf) => { req.rawBody = buf }
@@ -318,21 +345,27 @@ app.post('/webhook', async (req, res) => {
   broadcast(viewerId, { type: 'pack_recu', booster: boosterType, streamerId, setId, utilisateur: username })
 
   // Marquer la récompense comme terminée sur Twitch
-  const redemptionId   = event.id
-  const broadcasterId  = event.broadcaster_user_id
-  const rewardId       = event.reward?.id
-  if (redemptionId && broadcasterId && rewardId && TWITCH_CLIENT_ID && TWITCH_USER_TOKEN) {
-    fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards/redemptions?broadcaster_id=${broadcasterId}&reward_id=${rewardId}&id=${redemptionId}`, {
-      method: 'PATCH',
-      headers: {
-        'Client-Id': TWITCH_CLIENT_ID,
-        'Authorization': `Bearer ${TWITCH_USER_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ status: 'FULFILLED' })
-    }).then(r => {
-      if (!r.ok) r.text().then(t => console.log('Twitch PATCH redemption:', r.status, t))
-    }).catch(e => console.log('Twitch PATCH error:', e.message))
+  const redemptionId  = event.id
+  const broadcasterId = event.broadcaster_user_id
+  const rewardId      = event.reward?.id
+  if (redemptionId && broadcasterId && rewardId && TWITCH_CLIENT_ID && twitchUserToken) {
+    const fulfillRedemption = async (retry = false) => {
+      const r = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards/redemptions?broadcaster_id=${broadcasterId}&reward_id=${rewardId}&id=${redemptionId}`, {
+        method: 'PATCH',
+        headers: {
+          'Client-Id': TWITCH_CLIENT_ID,
+          'Authorization': `Bearer ${twitchUserToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: 'FULFILLED' })
+      })
+      if (r.status === 401 && !retry) {
+        const ok = await refreshTwitchToken()
+        if (ok) return fulfillRedemption(true)
+      }
+      if (!r.ok) { const t = await r.text(); console.log('Twitch PATCH redemption:', r.status, t) }
+    }
+    fulfillRedemption().catch(e => console.log('Twitch PATCH error:', e.message))
   }
 
   res.sendStatus(200)

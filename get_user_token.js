@@ -55,19 +55,24 @@ const server = http.createServer(async (req, res) => {
   }
 
   console.log('Token obtenu !')
-  console.log('\nAjoute cette ligne dans ton .env :')
-  console.log(`TWITCH_USER_TOKEN=${data.access_token}`)
 
   // Mise à jour automatique du .env
   const fs = require('fs')
   let env = fs.readFileSync('.env', 'utf8')
-  if (env.includes('TWITCH_USER_TOKEN=')) {
-    env = env.replace(/TWITCH_USER_TOKEN=.*/, `TWITCH_USER_TOKEN=${data.access_token}`)
-  } else {
-    env += `\nTWITCH_USER_TOKEN=${data.access_token}`
+  const updates = {
+    TWITCH_USER_TOKEN:    data.access_token,
+    TWITCH_REFRESH_TOKEN: data.refresh_token
+  }
+  for (const [key, val] of Object.entries(updates)) {
+    if (env.includes(`${key}=`)) {
+      env = env.replace(new RegExp(`${key}=.*`), `${key}=${val}`)
+    } else {
+      env += `\n${key}=${val}`
+    }
   }
   fs.writeFileSync('.env', env)
-  console.log('\n.env mis à jour automatiquement.')
+  console.log('.env mis à jour (access token + refresh token).')
+  console.log('\nN\'oublie pas de mettre à jour TWITCH_USER_TOKEN et TWITCH_REFRESH_TOKEN sur Render.')
   console.log('\nLance maintenant : node register_eventsub.js')
 })
 
