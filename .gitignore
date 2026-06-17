@@ -4,6 +4,7 @@ key.pem
 cert.pem
 .env
 ENV_NOTES.md
+AJOUTER_STREAMER.md
 
 PROMPT_GEMINI_IMAGES.md
 dashboard.html
