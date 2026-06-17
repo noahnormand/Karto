@@ -78,6 +78,12 @@ const server = http.createServer(async (req, res) => {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
   try {
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS karto_config (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `)
+    await pool.query(`
       INSERT INTO karto_config (key, value)
       VALUES ('TWITCH_USER_TOKEN', $1), ('TWITCH_REFRESH_TOKEN', $2)
       ON CONFLICT (key) DO UPDATE SET value = excluded.value
