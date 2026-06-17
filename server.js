@@ -170,28 +170,59 @@ const DEFAULT_COUT_ESSENCE = { single: 100, pack: 250, display: 800 }
 
 // contact streamer
 
+const contactRateLimit = new Map() // ip -> { count, resetAt }
+
+function checkRateLimit(ip) {
+  const now = Date.now()
+  const entry = contactRateLimit.get(ip)
+  if (!entry || now > entry.resetAt) {
+    contactRateLimit.set(ip, { count: 1, resetAt: now + 60 * 60 * 1000 })
+    return true
+  }
+  if (entry.count >= 3) return false
+  entry.count++
+  return true
+}
+
 app.post('/api/contact', async (req, res) => {
-  const { twitch, email, message } = req.body
-  if (!twitch || !email) return res.status(400).json({ error: 'champs manquants' })
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || ''
+
+  // Rate limiting : 3 soumissions max par heure par IP
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({ error: 'Trop de tentatives. Réessaie dans une heure.' })
+  }
+
+  const { twitch, email, message, tcg_url, website } = req.body
+
+  // Honeypot : si rempli c'est un bot
+  if (website) return res.status(400).json({ error: 'invalid' })
+
+  // Validation
+  if (!twitch || !email) return res.status(400).json({ error: 'Champs requis manquants.' })
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Email invalide.' })
+  if (twitch.length > 50 || email.length > 100) return res.status(400).json({ error: 'Champ trop long.' })
+
   try {
     await db.query(`
       CREATE TABLE IF NOT EXISTS contact_requests (
         id         SERIAL PRIMARY KEY,
         twitch     TEXT NOT NULL,
         email      TEXT NOT NULL,
+        tcg_url    TEXT,
         message    TEXT,
+        ip         TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `)
     await db.query(
-      'INSERT INTO contact_requests (twitch, email, message) VALUES ($1, $2, $3)',
-      [twitch, email, message || '']
+      'INSERT INTO contact_requests (twitch, email, tcg_url, message, ip) VALUES ($1, $2, $3, $4, $5)',
+      [twitch.trim(), email.trim(), tcg_url?.trim() || null, message?.trim() || null, ip]
     )
     console.log(`Nouvelle candidature streamer: ${twitch} (${email})`)
     res.json({ ok: true })
   } catch(e) {
     console.error('Erreur contact:', e.message)
-    res.status(500).json({ error: 'erreur serveur' })
+    res.status(500).json({ error: 'Erreur serveur.' })
   }
 })
 

@@ -9,24 +9,36 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:        #0e0e10;
-      --surface:   #18181b;
-      --surface2:  #1f1f23;
-      --border:    #2a2a2e;
-      --text:      #efeff1;
-      --muted:     #848494;
-      --purple:    #9146ff;
-      --purple-dk: #7721e5;
-      --white:     #ffffff;
+      --bg:       #f0f0f0;
+      --white:    #ffffff;
+      --black:    #111111;
+      --gray:     #555555;
+      --border:   #c8c8c8;
+      --purple:   #9146ff;
     }
 
     body {
       background: var(--bg);
-      color: var(--text);
+      color: var(--black);
       font-family: 'Inter', system-ui, sans-serif;
-      line-height: 1.6;
+      line-height: 1.5;
       overflow-x: hidden;
     }
+
+    /* Texture diagonale */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image: repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 6px,
+        rgba(0,0,0,0.025) 6px,
+        rgba(0,0,0,0.025) 7px
+      );
+    }
+
+    * { position: relative; z-index: 1; }
 
     a { color: inherit; text-decoration: none; }
 
@@ -35,208 +47,219 @@
       position: fixed; top: 0; left: 0; right: 0; z-index: 100;
       display: flex; align-items: center; justify-content: space-between;
       padding: 0 48px; height: 64px;
-      background: rgba(14,14,16,0.85);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      border-bottom: 1px solid var(--black);
     }
-    .nav-logo { font-size: 20px; font-weight: 800; letter-spacing: -0.03em; }
-    .nav-logo span { color: var(--purple); }
-    .nav-links { display: flex; gap: 32px; }
-    .nav-links a { font-size: 14px; font-weight: 500; color: var(--muted); transition: color .15s; }
-    .nav-links a:hover { color: var(--text); }
-    .nav-cta {
+    .nav-logo {
+      font-size: 22px; font-weight: 900; letter-spacing: -0.02em;
+      text-transform: uppercase;
+    }
+    .nav-links { display: flex; gap: 40px; }
+    .nav-links a {
+      font-size: 13px; font-weight: 600; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--gray);
+      transition: color .15s;
+    }
+    .nav-links a:hover { color: var(--black); }
+    .btn-twitch {
+      display: inline-flex; align-items: center; gap: 8px;
       background: var(--purple); color: #fff;
-      padding: 10px 20px; font-size: 14px; font-weight: 700;
-      cursor: pointer; border: none; transition: background .15s;
+      padding: 10px 20px; font-size: 13px; font-weight: 700;
+      letter-spacing: 0.04em; text-transform: uppercase;
+      border: none; cursor: pointer; transition: opacity .15s;
     }
-    .nav-cta:hover { background: var(--purple-dk); }
+    .btn-twitch:hover { opacity: 0.85; }
+    .btn-twitch svg { width: 16px; height: 16px; fill: #fff; flex-shrink: 0; }
 
     /* HERO */
     .hero {
       min-height: 100vh;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
       text-align: center; padding: 120px 24px 80px;
-      position: relative;
-    }
-    .hero::before {
-      content: '';
-      position: absolute; inset: 0;
-      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(145,70,255,0.12) 0%, transparent 70%);
-      pointer-events: none;
-    }
-    .hero-badge {
-      display: inline-flex; align-items: center; gap: 8px;
-      background: rgba(145,70,255,0.12); border: 1px solid rgba(145,70,255,0.3);
-      padding: 6px 14px; font-size: 12px; font-weight: 700;
-      letter-spacing: 0.08em; text-transform: uppercase; color: var(--purple);
-      margin-bottom: 32px;
-    }
-    .hero-badge::before {
-      content: ''; width: 6px; height: 6px;
-      background: var(--purple); border-radius: 50%;
-      animation: pulse 2s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+      border-bottom: 1px solid var(--black);
     }
     .hero h1 {
-      font-size: clamp(48px, 8vw, 96px);
+      font-size: clamp(56px, 9vw, 120px);
       font-weight: 900; letter-spacing: -0.04em;
-      line-height: 1; margin-bottom: 24px;
+      line-height: 0.95; text-transform: uppercase;
+      margin-bottom: 28px;
     }
-    .hero h1 em { font-style: normal; color: var(--purple); }
     .hero p {
-      font-size: clamp(16px, 2vw, 20px);
-      color: var(--muted); max-width: 560px;
+      font-size: clamp(15px, 1.5vw, 18px);
+      color: var(--gray); max-width: 480px;
       margin: 0 auto 48px;
     }
-    .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
-    .btn-primary {
-      background: var(--purple); color: #fff;
-      padding: 16px 32px; font-size: 16px; font-weight: 700;
-      cursor: pointer; border: none; transition: background .15s;
+    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .btn-black {
       display: inline-flex; align-items: center; gap: 8px;
+      background: var(--black); color: #fff;
+      padding: 16px 32px; font-size: 13px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      border: none; cursor: pointer; transition: opacity .15s;
     }
-    .btn-primary:hover { background: var(--purple-dk); }
-    .btn-secondary {
-      background: transparent; color: var(--text);
-      padding: 16px 32px; font-size: 16px; font-weight: 600;
-      cursor: pointer; border: 1px solid var(--border); transition: border-color .15s;
+    .btn-black:hover { opacity: 0.8; }
+    .btn-outline {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: transparent; color: var(--black);
+      padding: 16px 32px; font-size: 13px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      border: 1px solid var(--black); cursor: pointer; transition: background .15s, color .15s;
     }
-    .btn-secondary:hover { border-color: var(--muted); }
+    .btn-outline:hover { background: var(--black); color: #fff; }
 
     /* CARDS PREVIEW */
     .cards-preview {
-      display: flex; gap: 12px; justify-content: center; align-items: center;
-      margin-top: 80px; padding: 0 24px;
-      flex-wrap: nowrap; overflow: hidden;
+      display: flex; gap: 16px; justify-content: center; align-items: flex-end;
+      margin-top: 80px;
     }
     .card-mock {
-      width: 100px; flex-shrink: 0;
+      width: 90px; flex-shrink: 0;
       aspect-ratio: 63/88;
-      background: var(--surface2);
+      background: var(--white);
       border: 1px solid var(--border);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      font-size: 24px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 900; color: #ccc;
       transition: transform .2s;
     }
-    .card-mock:hover { transform: translateY(-6px); }
-    .card-mock.rare    { border-color: #4a90d9; box-shadow: 0 0 16px rgba(74,144,217,0.2); }
-    .card-mock.epic    { border-color: #9b59b6; box-shadow: 0 0 16px rgba(155,89,182,0.2); }
-    .card-mock.legend  { border-color: #eab308; box-shadow: 0 0 20px rgba(234,179,8,0.25); animation: goldGlow 3s ease-in-out infinite; }
-    @keyframes goldGlow {
-      0%,100% { box-shadow: 0 0 20px rgba(234,179,8,0.25); }
-      50%      { box-shadow: 0 0 32px rgba(234,179,8,0.5); }
-    }
-    .card-mock:nth-child(1) { transform: rotate(-6deg) translateY(12px); }
-    .card-mock:nth-child(2) { transform: rotate(-3deg) translateY(4px); }
-    .card-mock:nth-child(3) { transform: rotate(0deg) translateY(0); z-index: 2; }
-    .card-mock:nth-child(4) { transform: rotate(3deg) translateY(4px); }
-    .card-mock:nth-child(5) { transform: rotate(6deg) translateY(12px); }
-    .card-mock:nth-child(1):hover { transform: rotate(-6deg) translateY(6px); }
-    .card-mock:nth-child(2):hover { transform: rotate(-3deg) translateY(-2px); }
-    .card-mock:nth-child(3):hover { transform: rotate(0deg) translateY(-6px); }
-    .card-mock:nth-child(4):hover { transform: rotate(3deg) translateY(-2px); }
-    .card-mock:nth-child(5):hover { transform: rotate(6deg) translateY(6px); }
+    .card-mock:nth-child(1) { transform: rotate(-5deg) translateY(10px); }
+    .card-mock:nth-child(2) { transform: rotate(-2deg) translateY(4px); }
+    .card-mock:nth-child(3) { transform: rotate(0deg); border-color: var(--black); color: var(--black); }
+    .card-mock:nth-child(4) { transform: rotate(2deg) translateY(4px); }
+    .card-mock:nth-child(5) { transform: rotate(5deg) translateY(10px); }
 
-    /* SECTIONS */
-    section { padding: 96px 24px; }
-    .container { max-width: 1100px; margin: 0 auto; }
+    /* SECTION BASE */
+    section { border-bottom: 1px solid var(--black); }
+    .container { max-width: 1100px; margin: 0 auto; padding: 80px 48px; }
     .section-label {
-      font-size: 12px; font-weight: 700; letter-spacing: 0.1em;
-      text-transform: uppercase; color: var(--purple); margin-bottom: 16px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--gray); margin-bottom: 20px;
     }
     .section-title {
-      font-size: clamp(28px, 4vw, 48px);
-      font-weight: 800; letter-spacing: -0.03em;
-      line-height: 1.1; margin-bottom: 16px;
+      font-size: clamp(32px, 4vw, 56px);
+      font-weight: 900; letter-spacing: -0.03em;
+      text-transform: uppercase; line-height: 1;
+      margin-bottom: 20px;
     }
     .section-sub {
-      font-size: 18px; color: var(--muted); max-width: 560px;
+      font-size: 16px; color: var(--gray); max-width: 500px;
     }
 
     /* HOW IT WORKS */
-    .how { background: var(--surface); }
     .steps {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 2px; margin-top: 64px;
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      border-top: 1px solid var(--black); margin-top: 64px;
     }
     .step {
-      background: var(--bg); padding: 40px 32px;
-      border-top: 2px solid var(--border);
-      position: relative;
+      padding: 40px 32px;
+      border-right: 1px solid var(--black);
     }
-    .step.active { border-top-color: var(--purple); }
+    .step:last-child { border-right: none; }
     .step-num {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--gray);
+      margin-bottom: 24px;
+    }
+    .step h3 {
+      font-size: 16px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: -0.01em; margin-bottom: 10px;
+    }
+    .step p { font-size: 13px; color: var(--gray); line-height: 1.6; }
+
+    /* PERKS */
+    .perks {
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      border-top: 1px solid var(--black); margin-top: 64px;
+    }
+    .perk {
+      padding: 40px 40px;
+      border-right: 1px solid var(--black);
+      border-bottom: 1px solid var(--black);
+    }
+    .perk:nth-child(even) { border-right: none; }
+    .perk:nth-child(3), .perk:nth-child(4) { border-bottom: none; }
+    .perk-num {
       font-size: 48px; font-weight: 900; letter-spacing: -0.04em;
       color: var(--border); line-height: 1; margin-bottom: 20px;
     }
-    .step.active .step-num { color: var(--purple); }
-    .step h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
-    .step p { font-size: 14px; color: var(--muted); line-height: 1.6; }
-
-    /* FOR STREAMERS */
-    .for-streamers { background: var(--bg); }
-    .perks {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 2px; margin-top: 64px;
+    .perk h3 {
+      font-size: 16px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: -0.01em; margin-bottom: 8px;
     }
-    .perk {
-      background: var(--surface); padding: 36px 32px;
-      border-left: 2px solid var(--border);
-    }
-    .perk-icon { font-size: 28px; margin-bottom: 16px; }
-    .perk h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
-    .perk p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+    .perk p { font-size: 13px; color: var(--gray); line-height: 1.6; }
 
     /* CONTACT */
-    .contact { background: var(--surface); }
-    .contact-box {
-      background: var(--bg); border: 1px solid var(--border);
-      padding: 56px 48px; max-width: 600px;
+    .contact-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 80px; margin-top: 64px; align-items: start;
     }
-    .form-group { margin-bottom: 20px; }
+    .contact-info h3 {
+      font-size: 20px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: -0.02em; margin-bottom: 16px;
+    }
+    .contact-info p { font-size: 14px; color: var(--gray); line-height: 1.7; margin-bottom: 12px; }
+
+    .form-group { margin-bottom: 16px; }
     .form-group label {
-      display: block; font-size: 13px; font-weight: 600;
-      letter-spacing: 0.05em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: 8px;
+      display: block; font-size: 11px; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--gray); margin-bottom: 6px;
     }
     .form-group input,
-    .form-group textarea {
-      width: 100%; background: var(--surface2);
-      border: 1px solid var(--border); color: var(--text);
-      padding: 12px 16px; font-size: 15px; font-family: inherit;
+    .form-group textarea,
+    .form-group select {
+      width: 100%; background: var(--white);
+      border: 1px solid var(--border); color: var(--black);
+      padding: 11px 14px; font-size: 14px; font-family: inherit;
       outline: none; transition: border-color .15s;
-      resize: vertical;
+      resize: vertical; appearance: none;
     }
     .form-group input:focus,
-    .form-group textarea:focus { border-color: var(--purple); }
-    .form-group textarea { min-height: 100px; }
+    .form-group textarea:focus { border-color: var(--black); }
+    .form-group textarea { min-height: 90px; }
+
+    /* Honeypot */
+    .hp-field { display: none; }
+
     .form-success {
-      display: none; background: rgba(145,70,255,0.1);
-      border: 1px solid rgba(145,70,255,0.3);
-      padding: 16px 20px; font-size: 14px; color: var(--purple);
-      margin-top: 16px; font-weight: 600;
+      display: none;
+      border: 1px solid var(--black);
+      padding: 16px; font-size: 13px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      margin-top: 12px; background: var(--white);
+    }
+    .form-error {
+      display: none;
+      border: 1px solid #c00;
+      padding: 16px; font-size: 13px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      margin-top: 12px; color: #c00;
     }
 
     /* FOOTER */
     footer {
-      background: var(--bg); border-top: 1px solid var(--border);
-      padding: 32px 48px;
       display: flex; align-items: center; justify-content: space-between;
-      flex-wrap: wrap; gap: 16px;
+      padding: 24px 48px; flex-wrap: wrap; gap: 12px;
     }
-    .footer-logo { font-size: 16px; font-weight: 800; letter-spacing: -0.03em; }
-    .footer-logo span { color: var(--purple); }
-    footer p { font-size: 13px; color: var(--muted); }
+    .footer-logo { font-size: 16px; font-weight: 900; text-transform: uppercase; }
+    footer p { font-size: 12px; color: var(--gray); letter-spacing: 0.04em; }
 
     /* RESPONSIVE */
-    @media (max-width: 768px) {
+    @media (max-width: 900px) {
+      .steps { grid-template-columns: repeat(2, 1fr); }
+      .step:nth-child(2) { border-right: none; }
+      .step:nth-child(3) { border-right: 1px solid var(--black); }
+      .contact-grid { grid-template-columns: 1fr; gap: 40px; }
       nav { padding: 0 20px; }
       .nav-links { display: none; }
-      .contact-box { padding: 32px 24px; }
-      footer { padding: 24px 20px; }
+      .container { padding: 60px 24px; }
+      footer { padding: 20px 24px; }
+    }
+    @media (max-width: 600px) {
+      .steps { grid-template-columns: 1fr; }
+      .perks { grid-template-columns: 1fr; }
+      .step { border-right: none; }
+      .perk { border-right: none; }
     }
   </style>
 </head>
@@ -244,121 +267,138 @@
 
 <!-- NAV -->
 <nav>
-  <div class="nav-logo">Kart<span>o</span></div>
+  <div class="nav-logo">Karto</div>
   <div class="nav-links">
     <a href="#comment">Comment ça marche</a>
     <a href="#streamers">Pour les streamers</a>
-    <a href="#contact">Contact</a>
+    <a href="#contact">Rejoindre</a>
   </div>
-  <a href="#contact"><button class="nav-cta">Devenir partenaire</button></a>
+  <a href="/app.html">
+    <button class="btn-twitch">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
+      Voir la démo
+    </button>
+  </a>
 </nav>
 
 <!-- HERO -->
 <section class="hero">
-  <div class="hero-badge">Bêta - Rejoins les premiers streamers</div>
-  <h1>Tes viewers méritent<br>de <em>collectionner</em>.</h1>
+  <h1>Tes viewers<br>méritent de<br>collectionner.</h1>
   <p>Karto transforme tes points de chaîne en boosters de cartes à collectionner. Un univers unique pour chaque streamer.</p>
   <div class="hero-actions">
-    <a href="#contact"><button class="btn-primary">Devenir streamer partenaire</button></a>
-    <a href="/app.html"><button class="btn-secondary">Voir la démo →</button></a>
+    <a href="#contact"><button class="btn-black">Devenir streamer partenaire</button></a>
+    <a href="/app.html"><button class="btn-outline">Voir la démo →</button></a>
   </div>
-
   <div class="cards-preview">
-    <div class="card-mock">🗡️</div>
-    <div class="card-mock rare">⚡</div>
-    <div class="card-mock legend">✨</div>
-    <div class="card-mock epic">🔮</div>
-    <div class="card-mock">🛡️</div>
+    <div class="card-mock">C</div>
+    <div class="card-mock">R</div>
+    <div class="card-mock">★</div>
+    <div class="card-mock">E</div>
+    <div class="card-mock">L</div>
   </div>
 </section>
 
 <!-- HOW IT WORKS -->
-<section class="how" id="comment">
+<section id="comment">
   <div class="container">
     <p class="section-label">Comment ça marche</p>
-    <h2 class="section-title">Simple pour le viewer,<br>zéro effort pour toi.</h2>
+    <h2 class="section-title">Simple pour le viewer.<br>Zéro effort pour toi.</h2>
     <p class="section-sub">Le viewer rachète une récompense de points de chaîne et reçoit un booster à ouvrir quand il veut.</p>
     <div class="steps">
-      <div class="step active">
-        <div class="step-num">01</div>
+      <div class="step">
+        <div class="step-num">Étape 01</div>
         <h3>Le viewer dépense ses points</h3>
-        <p>Il rachète ta récompense Twitch "Booster Karto". Les points partent, la magie commence.</p>
+        <p>Il rachète ta récompense Twitch. Les points partent, le booster arrive en temps réel.</p>
       </div>
       <div class="step">
-        <div class="step-num">02</div>
-        <h3>Un booster arrive en temps réel</h3>
-        <p>Karto reçoit la notification instantanément. Le booster apparaît dans l'inventaire du viewer sans aucun refresh.</p>
+        <div class="step-num">Étape 02</div>
+        <h3>Le booster arrive instantanément</h3>
+        <p>Karto reçoit la notification et crédite le booster sans aucune action de ta part.</p>
       </div>
       <div class="step">
-        <div class="step-num">03</div>
+        <div class="step-num">Étape 03</div>
         <h3>Il ouvre ses cartes</h3>
-        <p>Révélation carte par carte, avec animations. Communes, Rares, Légendaires - chaque ouverture est unique.</p>
+        <p>Révélation carte par carte avec animations. Communes, Rares, Légendaires - chaque ouverture est unique.</p>
       </div>
       <div class="step">
-        <div class="step-num">04</div>
+        <div class="step-num">Étape 04</div>
         <h3>Il complète sa collection</h3>
-        <p>Toutes les cartes sont visibles, possédées ou non. La progression et la rareté poussent à revenir.</p>
+        <p>Toutes les cartes visibles, possédées ou non. La progression pousse à revenir sur ton stream.</p>
       </div>
     </div>
   </div>
 </section>
 
 <!-- FOR STREAMERS -->
-<section class="for-streamers" id="streamers">
+<section id="streamers">
   <div class="container">
     <p class="section-label">Pour les streamers</p>
-    <h2 class="section-title">Un univers à ton image.</h2>
-    <p class="section-sub">Tes cartes, tes personnages, tes raretés. On construit le set ensemble.</p>
+    <h2 class="section-title">Ton univers,<br>tes règles.</h2>
+    <p class="section-sub">On crée un set sur mesure avec tes personnages, ton lore, tes couleurs. Chaque streamer a sa propre identité.</p>
     <div class="perks">
       <div class="perk">
-        <div class="perk-icon">🎨</div>
+        <div class="perk-num">01</div>
         <h3>Tes cartes, ton univers</h3>
-        <p>On crée un set sur mesure avec tes personnages, ton lore, tes couleurs. Chaque streamer a sa propre identité.</p>
+        <p>Personnages, raretés, illustrations - tout est customisé à ton image. On construit le set ensemble.</p>
       </div>
       <div class="perk">
-        <div class="perk-icon">⚡</div>
+        <div class="perk-num">02</div>
         <h3>Intégration en quelques minutes</h3>
-        <p>Un script, une autorisation Twitch, c'est en ligne. Pas de code à écrire de ton côté.</p>
+        <p>Un script, une autorisation Twitch. C'est en ligne. Pas de code à écrire de ton côté.</p>
       </div>
       <div class="perk">
-        <div class="perk-icon">📈</div>
-        <h3>Tes viewers restent plus longtemps</h3>
-        <p>Collectionner pousse à revenir. Les viewers accumulent des points et cherchent les cartes qui manquent.</p>
+        <div class="perk-num">03</div>
+        <h3>Tes viewers reviennent plus souvent</h3>
+        <p>Collectionner crée de l'attachement. Les viewers farm les points pour ouvrir des boosters sur ton stream.</p>
       </div>
       <div class="perk">
-        <div class="perk-icon">🎯</div>
+        <div class="perk-num">04</div>
         <h3>Tu choisis les règles</h3>
-        <p>Nombre de cartes par booster, raretés, coût en points — tout est configurable selon ta communauté.</p>
+        <p>Nombre de cartes, raretés, coût en points, types de boosters - tout est configurable selon ta communauté.</p>
       </div>
     </div>
   </div>
 </section>
 
 <!-- CONTACT -->
-<section class="contact" id="contact">
+<section id="contact">
   <div class="container">
     <p class="section-label">Rejoindre la bêta</p>
-    <h2 class="section-title">Tu veux être partenaire ?</h2>
-    <p class="section-sub" style="margin-bottom: 48px;">Laisse-nous tes infos, on revient vers toi rapidement.</p>
-    <div class="contact-box">
-      <form id="contactForm">
+    <h2 class="section-title">Tu veux être<br>partenaire ?</h2>
+    <div class="contact-grid">
+      <div class="contact-info">
+        <p>On est en bêta et on sélectionne les premiers streamers partenaires. On construit le set ensemble - cartes, raretés, univers.</p>
+        <p>Laisse tes infos et on revient vers toi dans les 48h.</p>
+      </div>
+      <form id="contactForm" novalidate>
+        <!-- Honeypot anti-bot -->
+        <div class="hp-field">
+          <input type="text" name="website" tabindex="-1" autocomplete="off" />
+        </div>
         <div class="form-group">
-          <label>Login Twitch</label>
+          <label>Login Twitch *</label>
           <input type="text" name="twitch" placeholder="ton_login" required />
         </div>
         <div class="form-group">
-          <label>Email</label>
+          <label>Email *</label>
           <input type="email" name="email" placeholder="toi@exemple.com" required />
         </div>
         <div class="form-group">
-          <label>Ta communauté en quelques mots</label>
-          <textarea name="message" placeholder="Quel est ton univers, ta thématique, combien de viewers tu as en moyenne..."></textarea>
+          <label>Lien vers ton TCG (si tu en as un)</label>
+          <input type="url" name="tcg_url" placeholder="https://..." />
         </div>
-        <button type="submit" class="btn-primary" style="width:100%; justify-content:center;">
+        <div class="form-group">
+          <label>Ta communauté en quelques mots</label>
+          <textarea name="message" placeholder="Thématique, taille de ta communauté, idées pour ton set..."></textarea>
+        </div>
+        <button type="submit" class="btn-black" style="width:100%;justify-content:center;">
           Envoyer ma candidature
         </button>
         <div class="form-success" id="formSuccess">
-          Candidature reçue ! On te répond dans les 48h.
+          Candidature reçue - on te répond dans les 48h.
+        </div>
+        <div class="form-error" id="formError">
+          Erreur - vérifie les champs et réessaie.
         </div>
       </form>
     </div>
@@ -367,15 +407,38 @@
 
 <!-- FOOTER -->
 <footer>
-  <div class="footer-logo">Kart<span>o</span></div>
+  <div class="footer-logo">Karto</div>
   <p>Projet en bêta - 2025</p>
 </footer>
 
 <script>
-  document.getElementById('contactForm').addEventListener('submit', async (e) => {
+  const form = document.getElementById('contactForm')
+
+  form.addEventListener('submit', async (e) => {
     e.preventDefault()
-    const form = e.target
-    const data = Object.fromEntries(new FormData(form))
+
+    const success = document.getElementById('formSuccess')
+    const error   = document.getElementById('formError')
+    success.style.display = 'none'
+    error.style.display   = 'none'
+
+    const data = {
+      twitch:   form.twitch.value.trim(),
+      email:    form.email.value.trim(),
+      tcg_url:  form.tcg_url.value.trim(),
+      message:  form.message.value.trim(),
+      website:  form.website.value // honeypot
+    }
+
+    if (!data.twitch || !data.email) {
+      error.textContent = 'Login Twitch et email requis.'
+      error.style.display = 'block'
+      return
+    }
+
+    const btn = form.querySelector('button[type="submit"]')
+    btn.disabled = true
+    btn.textContent = 'Envoi...'
 
     try {
       const res = await fetch('/api/contact', {
@@ -385,12 +448,18 @@
       })
       if (res.ok) {
         form.reset()
-        document.getElementById('formSuccess').style.display = 'block'
+        success.style.display = 'block'
+      } else {
+        const json = await res.json().catch(() => ({}))
+        error.textContent = json.error || 'Erreur serveur - réessaie.'
+        error.style.display = 'block'
       }
-    } catch(err) {
-      // fallback silencieux
-      form.reset()
-      document.getElementById('formSuccess').style.display = 'block'
+    } catch {
+      error.textContent = 'Erreur réseau - réessaie.'
+      error.style.display = 'block'
+    } finally {
+      btn.disabled = false
+      btn.textContent = 'Envoyer ma candidature'
     }
   })
 </script>
