@@ -521,6 +521,7 @@ function connexionTwitch() {
   url.searchParams.set('redirect_uri',  TWITCH_REDIRECT)
   url.searchParams.set('response_type', 'token')
   url.searchParams.set('scope',         'user:read:email')
+  url.searchParams.set('force_verify',  'true')
   window.location.href = url.toString()
 }
 
