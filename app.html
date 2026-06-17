@@ -547,6 +547,7 @@ async function verifierConnexion() {
   if (tok && user) {
     utilisateurConnecte = JSON.parse(user)
     basculerEtat(true)
+    connecterSSE()
     await chargerCollectionGlobale(utilisateurConnecte.id)
   }
 }
@@ -559,6 +560,7 @@ async function chargerUtilisateur(token) {
     utilisateurConnecte = data.data[0]
     localStorage.setItem('twitch_user', JSON.stringify(utilisateurConnecte))
     basculerEtat(true)
+    connecterSSE()
     toast('Connecté en tant que ' + utilisateurConnecte.display_name)
     await chargerCollectionGlobale(utilisateurConnecte.id)
   } catch (err) { console.error(err); toast('Erreur de connexion Twitch', 'rouge') }
@@ -975,7 +977,8 @@ async function selectionnerSet(streamerId, setId) {
 }
 
 async function voirTouteCollection() {
-  setActif = null
+  setActif      = null
+  streamerActif = null
   mettreAJourSidebar()
   document.getElementById('setActifBanner').style.display = 'none'
   document.getElementById('shopSection').style.display    = 'none'
@@ -1158,12 +1161,10 @@ function preparerBooster(boosterId) {
   const data    = setData[cleSet(streamerId, setId)]
   const booster = data.config.boosters[boosterId]
   const resultat = []
-  const nb = booster.nb_cartes / 10
-  for (let b = 0; b < nb; b++) {
-    for (let i = 0; i < 10; i++) {
-      const garantie = (b === nb - 1 && i === 9) ? booster.garantie : null
-      resultat.push(tirerCarte(data.cards, data.config.raretes, garantie))
-    }
+  const total = booster.nb_cartes || 10
+  for (let i = 0; i < total; i++) {
+    const garantie = (i === total - 1) ? booster.garantie : null
+    resultat.push(tirerCarte(data.cards, data.config.raretes, garantie))
   }
   return resultat
 }
@@ -1403,40 +1404,69 @@ function afficherCollection() {
   } else {
     // Vue globale toutes collections
     if (progress) progress.style.display = 'none'
+
     let entrees = []
-    for (const [streamerId, sets] of Object.entries(collectionGlobale)) {
-      for (const [setId, col] of Object.entries(sets)) {
-        const cards = setData[cleSet(streamerId, setId)]?.cards || []
-        for (const [id, qty] of Object.entries(col)) {
-          const carte = cards.find(c => c.id === id)
-          if (carte) entrees.push({ carte, qty, streamerId, setId })
+    for (const [sid, sets] of Object.entries(collectionGlobale)) {
+      for (const [sid2, cartes] of Object.entries(sets)) {
+        const sData = setData[cleSet(sid, sid2)]
+        if (!sData) continue
+        for (const carte of sData.cards) {
+          const qty = cartes[carte.id] || 0
+          if (qty > 0) entrees.push({ carte, qty, streamerId: sid, setId: sid2 })
         }
       }
     }
+
     if (filtreCourant !== 'tous') {
       entrees = entrees.filter(({ carte }) => carte.rarete === filtreCourant || carte.type === filtreCourant)
     }
-    entrees.sort((a,b) => ordre.indexOf(a.carte.rarete) - ordre.indexOf(b.carte.rarete))
+    entrees.sort((a,b) => {
+      const ordre = ['Légendaire','Épique','Rare','Peu Commun','Commun']
+      return ordre.indexOf(a.carte.rarete) - ordre.indexOf(b.carte.rarete)
+    })
 
-    const total = entrees.reduce((acc,e) => acc + e.qty, 0)
-    compteur.textContent = total + ' exemplaire' + (total > 1 ? 's' : '')
-
-    if (!entrees.length) {
-      grille.innerHTML = '<div class="col-span-full text-center text-secondary py-12">Aucune carte dans ta collection.</div>'
-      return
-    }
+    const totalExemplaires = entrees.reduce((acc,e) => acc + e.qty, 0)
+    compteur.textContent = totalExemplaires + ' exemplaire' + (totalExemplaires > 1 ? 's' : '')
 
     grille.innerHTML = entrees.map(({ carte, qty, streamerId, setId }) => {
-      const possede = qty > 0
       return `<div class="dense-grid-item aspect-square relative cursor-pointer hover:bg-surface-variant group transition-colors"
                    onclick="voirCarte('${carte.id}','${streamerId}','${setId}')">
-        <div>
-          ${construireCarte(carte, streamerId, setId)}
-        </div>
+        ${construireCarte(carte, streamerId, setId)}
         ${qty > 1 ? `<div class="absolute top-1 right-1 border border-primary bg-surface font-mono-label text-[10px] px-1 z-10">×${qty}</div>` : ''}
       </div>`
     }).join('')
   }
+}
+
+function lancerParticules() {
+  const couleurs = ['#f0a500','#fff','#ffd700','#ffaa00']
+  for (let i = 0; i < 30; i++) {
+    setTimeout(() => {
+      const p = document.createElement('div')
+      p.style.cssText = `position:fixed;pointer-events:none;z-index:9999;width:8px;height:8px;border-radius:50%;background:${couleurs[Math.floor(Math.random()*couleurs.length)]};left:${Math.random()*window.innerWidth}px;top:${Math.random()*window.innerHeight*0.6}px;transition:transform 1s ease-out,opacity 1s;opacity:1`
+      document.body.appendChild(p)
+      requestAnimationFrame(() => {
+        p.style.transform = `translate(${(Math.random()-0.5)*200}px,${-(Math.random()*150+50)}px)`
+        p.style.opacity = '0'
+      })
+      setTimeout(() => p.remove(), 1000)
+    }, i * 40)
+  }
+}
+
+function connecterSSE() {
+  if (!utilisateurConnecte) return
+  const es = new EventSource(`/events?viewerId=${utilisateurConnecte.id}`)
+  es.onmessage = e => {
+    try {
+      const msg = JSON.parse(e.data)
+      if (msg.type === 'pack_recu') {
+        recevoirPack(msg.streamerId, msg.setId, msg.booster, utilisateurConnecte.id)
+        toast('🎁 Pack reçu : ' + msg.booster + ' — ' + msg.streamerId + '/' + msg.setId + ' !', 'vert')
+      }
+    } catch (_) {}
+  }
+  es.onerror = () => { es.close(); setTimeout(connecterSSE, 5000) }
 }
 
 chargerStreamers().then(() => verifierConnexion())

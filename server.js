@@ -263,17 +263,19 @@ app.get('/api/streamer/:id/set/:setId/cards', (req, res) => {
 // collection
 
 app.get('/api/collection/:viewerId', async (req, res) => {
-  const { rows } = await db.query(
-    'SELECT streamer_id, set_id, carte_id, quantite FROM viewer_cards WHERE viewer_id = $1',
-    [req.params.viewerId]
-  )
-  const col = {}
-  rows.forEach(r => {
-    if (!col[r.streamer_id]) col[r.streamer_id] = {}
-    if (!col[r.streamer_id][r.set_id]) col[r.streamer_id][r.set_id] = {}
-    col[r.streamer_id][r.set_id][r.carte_id] = r.quantite
-  })
-  res.json(col)
+  try {
+    const { rows } = await db.query(
+      'SELECT streamer_id, set_id, carte_id, quantite FROM viewer_cards WHERE viewer_id = $1',
+      [req.params.viewerId]
+    )
+    const col = {}
+    rows.forEach(r => {
+      if (!col[r.streamer_id]) col[r.streamer_id] = {}
+      if (!col[r.streamer_id][r.set_id]) col[r.streamer_id][r.set_id] = {}
+      col[r.streamer_id][r.set_id][r.carte_id] = r.quantite
+    })
+    res.json(col)
+  } catch(e) { console.error('GET /api/collection:', e); res.status(500).json({ error: e.message }) }
 })
 
 app.post('/api/streamer/:id/set/:setId/collection/:viewerId', async (req, res) => {
@@ -312,64 +314,72 @@ app.post('/api/streamer/:id/set/:setId/collection/:viewerId', async (req, res) =
 // packs (inventaire)
 
 app.get('/api/packs/:viewerId', async (req, res) => {
-  const { rows } = await db.query(
-    'SELECT streamer_id, set_id, booster_type, quantite FROM viewer_packs WHERE viewer_id = $1 AND quantite > 0',
-    [req.params.viewerId]
-  )
-  const inv = {}
-  rows.forEach(r => {
-    if (!inv[r.streamer_id]) inv[r.streamer_id] = {}
-    if (!inv[r.streamer_id][r.set_id]) inv[r.streamer_id][r.set_id] = {}
-    inv[r.streamer_id][r.set_id][r.booster_type] = r.quantite
-  })
-  res.json(inv)
+  try {
+    const { rows } = await db.query(
+      'SELECT streamer_id, set_id, booster_type, quantite FROM viewer_packs WHERE viewer_id = $1 AND quantite > 0',
+      [req.params.viewerId]
+    )
+    const inv = {}
+    rows.forEach(r => {
+      if (!inv[r.streamer_id]) inv[r.streamer_id] = {}
+      if (!inv[r.streamer_id][r.set_id]) inv[r.streamer_id][r.set_id] = {}
+      inv[r.streamer_id][r.set_id][r.booster_type] = r.quantite
+    })
+    res.json(inv)
+  } catch(e) { console.error('GET /api/packs:', e); res.status(500).json({ error: e.message }) }
 })
 
 app.post('/api/packs/:viewerId/add', async (req, res) => {
-  const { streamerId, setId, boosterType, quantite = 1 } = req.body
-  if (!streamerId || !setId || !boosterType) return res.status(400).json({ error: 'champs manquants' })
+  try {
+    const { streamerId, setId, boosterType, quantite = 1 } = req.body
+    if (!streamerId || !setId || !boosterType) return res.status(400).json({ error: 'champs manquants' })
 
-  await db.query(`
-    INSERT INTO viewer_packs (viewer_id, streamer_id, set_id, booster_type, quantite)
-    VALUES ($1, $2, $3, $4, $5)
-    ON CONFLICT (viewer_id, streamer_id, set_id, booster_type)
-    DO UPDATE SET quantite = viewer_packs.quantite + excluded.quantite
-  `, [req.params.viewerId, streamerId, setId, boosterType, quantite])
+    await db.query(`
+      INSERT INTO viewer_packs (viewer_id, streamer_id, set_id, booster_type, quantite)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (viewer_id, streamer_id, set_id, booster_type)
+      DO UPDATE SET quantite = viewer_packs.quantite + excluded.quantite
+    `, [req.params.viewerId, streamerId, setId, boosterType, quantite])
 
-  res.json({ ok: true })
+    res.json({ ok: true })
+  } catch(e) { console.error('POST /api/packs/add:', e); res.status(500).json({ error: e.message }) }
 })
 
 app.post('/api/packs/:viewerId/use', async (req, res) => {
-  const { streamerId, setId, boosterType } = req.body
-  const { rows } = await db.query(
-    'SELECT quantite FROM viewer_packs WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3 AND booster_type = $4',
-    [req.params.viewerId, streamerId, setId, boosterType]
-  )
+  try {
+    const { streamerId, setId, boosterType } = req.body
+    const { rows } = await db.query(
+      'SELECT quantite FROM viewer_packs WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3 AND booster_type = $4',
+      [req.params.viewerId, streamerId, setId, boosterType]
+    )
 
-  if (!rows[0] || rows[0].quantite < 1) return res.status(400).json({ error: 'aucun pack dispo' })
+    if (!rows[0] || rows[0].quantite < 1) return res.status(400).json({ error: 'aucun pack dispo' })
 
-  await db.query(
-    'UPDATE viewer_packs SET quantite = quantite - 1 WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3 AND booster_type = $4',
-    [req.params.viewerId, streamerId, setId, boosterType]
-  )
+    await db.query(
+      'UPDATE viewer_packs SET quantite = quantite - 1 WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3 AND booster_type = $4',
+      [req.params.viewerId, streamerId, setId, boosterType]
+    )
 
-  res.json({ ok: true })
+    res.json({ ok: true })
+  } catch(e) { console.error('POST /api/packs/use:', e); res.status(500).json({ error: e.message }) }
 })
 
 
 // essence (désenchantement + rachat)
 
 app.get('/api/essence/:viewerId', async (req, res) => {
-  const { rows } = await db.query(
-    'SELECT streamer_id, set_id, quantite FROM viewer_essence WHERE viewer_id = $1',
-    [req.params.viewerId]
-  )
-  const e = {}
-  rows.forEach(r => {
-    if (!e[r.streamer_id]) e[r.streamer_id] = {}
-    e[r.streamer_id][r.set_id] = r.quantite
-  })
-  res.json(e)
+  try {
+    const { rows } = await db.query(
+      'SELECT streamer_id, set_id, quantite FROM viewer_essence WHERE viewer_id = $1',
+      [req.params.viewerId]
+    )
+    const e = {}
+    rows.forEach(r => {
+      if (!e[r.streamer_id]) e[r.streamer_id] = {}
+      e[r.streamer_id][r.set_id] = r.quantite
+    })
+    res.json(e)
+  } catch(e2) { console.error('GET /api/essence:', e2); res.status(500).json({ error: e2.message }) }
 })
 
 // désenchanter des doublons : body { carteId, nb }
@@ -383,251 +393,272 @@ app.post('/api/streamer/:id/set/:setId/desenchanter/:viewerId', async (req, res)
   const carte = set.cards.find(c => c.id === carteId)
   if (!carte) return res.status(404).json({ error: 'carte introuvable' })
 
-  const nbInt = parseInt(nb, 10)
-  if (!Number.isInteger(nbInt) || nbInt < 1) return res.status(400).json({ error: 'nb invalide' })
-
-  const tauxRarete = set.config.raretes?.[carte.rarete]?.essence
-    ?? DEFAULT_ESSENCE_RARETE[carte.rarete]
-    ?? 5
-  const gain = tauxRarete * nbInt
+  const essenceParCarte = set.config.raretes?.[carte.rarete]?.essence || 5
 
   const client = await db.connect()
   try {
     await client.query('BEGIN')
 
     const { rows } = await client.query(
-      'SELECT quantite FROM viewer_cards WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3 AND carte_id = $4 FOR UPDATE',
+      'SELECT quantite FROM viewer_cards WHERE viewer_id=$1 AND streamer_id=$2 AND set_id=$3 AND carte_id=$4',
       [viewerId, streamerId, setId, carteId]
     )
-    const possede = rows[0]?.quantite || 0
-    // protection : garde toujours min 1 exemplaire
-    if (possede - nbInt < 1) {
+    const qte = rows[0]?.quantite || 0
+    const doublons = qte - 1
+
+    if (doublons < nb) {
       await client.query('ROLLBACK')
-      return res.status(400).json({ error: 'doublons insuffisants (min 1 gardé)' })
+      return res.status(400).json({ error: `doublons insuffisants (min 1 gardé)` })
     }
 
+    const nouvelleQte = qte - nb
     await client.query(
-      'UPDATE viewer_cards SET quantite = quantite - $1 WHERE viewer_id = $2 AND streamer_id = $3 AND set_id = $4 AND carte_id = $5',
-      [nbInt, viewerId, streamerId, setId, carteId]
+      'UPDATE viewer_cards SET quantite=$1 WHERE viewer_id=$2 AND streamer_id=$3 AND set_id=$4 AND carte_id=$5',
+      [nouvelleQte, viewerId, streamerId, setId, carteId]
     )
 
+    const essenceGagnee = essenceParCarte * nb
     await client.query(`
       INSERT INTO viewer_essence (viewer_id, streamer_id, set_id, quantite)
       VALUES ($1, $2, $3, $4)
       ON CONFLICT (viewer_id, streamer_id, set_id)
-      DO UPDATE SET quantite = viewer_essence.quantite + excluded.quantite
-    `, [viewerId, streamerId, setId, gain])
+      DO UPDATE SET quantite = viewer_essence.quantite + $4
+    `, [viewerId, streamerId, setId, essenceGagnee])
 
-    const { rows: er } = await client.query(
-      'SELECT quantite FROM viewer_essence WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3',
+    await client.query('COMMIT')
+
+    const { rows: essRows } = await client.query(
+      'SELECT quantite FROM viewer_essence WHERE viewer_id=$1 AND streamer_id=$2 AND set_id=$3',
       [viewerId, streamerId, setId]
     )
 
-    await client.query('COMMIT')
-    res.json({ ok: true, gain, essence: er[0]?.quantite || 0, restant: possede - nbInt })
-  } catch (e) {
+    res.json({ ok: true, restant: nouvelleQte, essence: essRows[0]?.quantite || 0 })
+  } catch(e) {
     await client.query('ROLLBACK')
-    console.log('desenchanter:', e.message)
-    res.status(500).json({ error: 'erreur serveur' })
+    console.error('desenchanter:', e)
+    res.status(500).json({ error: e.message })
   } finally {
     client.release()
   }
 })
 
-// racheter un booster avec de l'essence : body { boosterType }
+// racheter une carte avec de l'essence
 app.post('/api/streamer/:id/set/:setId/racheter/:viewerId', async (req, res) => {
   const { id: streamerId, setId, viewerId } = req.params
-  const { boosterType } = req.body
+  const { carteId } = req.body
 
   const set = streamers[streamerId]?.sets[setId]
   if (!set) return res.status(404).json({ error: 'set introuvable' })
 
-  const booster = set.config.boosters?.[boosterType]
-  if (!booster) return res.status(404).json({ error: 'booster introuvable' })
+  const carte = set.cards.find(c => c.id === carteId)
+  if (!carte) return res.status(404).json({ error: 'carte introuvable' })
 
-  const cout = booster.cout_essence ?? DEFAULT_COUT_ESSENCE[boosterType]
-  if (!cout) return res.status(400).json({ error: 'booster non rachetable' })
+  const cout = set.config.raretes?.[carte.rarete]?.essence_rachat || (set.config.raretes?.[carte.rarete]?.essence || 5) * 4
 
   const client = await db.connect()
   try {
     await client.query('BEGIN')
 
-    const { rows } = await client.query(
-      'SELECT quantite FROM viewer_essence WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3 FOR UPDATE',
+    const { rows: essRows } = await client.query(
+      'SELECT quantite FROM viewer_essence WHERE viewer_id=$1 AND streamer_id=$2 AND set_id=$3',
       [viewerId, streamerId, setId]
     )
-    const e = rows[0]?.quantite || 0
-    if (e < cout) {
+    const essence = essRows[0]?.quantite || 0
+    if (essence < cout) {
       await client.query('ROLLBACK')
-      return res.status(400).json({ error: 'essence insuffisante', requis: cout, possede: e })
+      return res.status(400).json({ error: `essence insuffisante (${essence}/${cout})` })
     }
 
     await client.query(
-      'UPDATE viewer_essence SET quantite = quantite - $1 WHERE viewer_id = $2 AND streamer_id = $3 AND set_id = $4',
+      'UPDATE viewer_essence SET quantite=quantite-$1 WHERE viewer_id=$2 AND streamer_id=$3 AND set_id=$4',
       [cout, viewerId, streamerId, setId]
     )
-
     await client.query(`
-      INSERT INTO viewer_packs (viewer_id, streamer_id, set_id, booster_type, quantite)
+      INSERT INTO viewer_cards (viewer_id, streamer_id, set_id, carte_id, quantite)
       VALUES ($1, $2, $3, $4, 1)
-      ON CONFLICT (viewer_id, streamer_id, set_id, booster_type)
-      DO UPDATE SET quantite = viewer_packs.quantite + 1
-    `, [viewerId, streamerId, setId, boosterType])
+      ON CONFLICT (viewer_id, streamer_id, set_id, carte_id)
+      DO UPDATE SET quantite = viewer_cards.quantite + 1
+    `, [viewerId, streamerId, setId, carteId])
 
     await client.query('COMMIT')
-    res.json({ ok: true, essence: e - cout })
-  } catch (err) {
+
+    const { rows: newEss } = await client.query(
+      'SELECT quantite FROM viewer_essence WHERE viewer_id=$1 AND streamer_id=$2 AND set_id=$3',
+      [viewerId, streamerId, setId]
+    )
+    res.json({ ok: true, essence: newEss[0]?.quantite || 0 })
+  } catch(e) {
     await client.query('ROLLBACK')
-    console.log('racheter:', err.message)
-    res.status(500).json({ error: 'erreur serveur' })
+    console.error('racheter:', e)
+    res.status(500).json({ error: e.message })
   } finally {
     client.release()
   }
 })
 
 
-// sse
-
-const connections = new Map()
+// SSE — notifications temps réel vers le frontend
+const sseClients = new Map() // viewerId -> [res, ...]
 
 app.get('/events', (req, res) => {
-  res.setHeader('Content-Type',  'text/event-stream')
+  const viewerId = req.query.viewerId
+  if (!viewerId) return res.status(400).end()
+
+  res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
-  res.setHeader('Connection',    'keep-alive')
+  res.setHeader('Connection', 'keep-alive')
+  res.flushHeaders()
 
-  const viewerId = req.query.viewerId || 'anon'
-  if (!connections.has(viewerId)) connections.set(viewerId, [])
-  connections.get(viewerId).push(res)
+  if (!sseClients.has(viewerId)) sseClients.set(viewerId, [])
+  sseClients.get(viewerId).push(res)
 
-  const ping = setInterval(() => res.write(': ping\n\n'), 25000)
+  const keepalive = setInterval(() => res.write(': ping\n\n'), 30000)
+
   req.on('close', () => {
-    clearInterval(ping)
-    const remaining = (connections.get(viewerId) || []).filter(r => r !== res)
-    if (!remaining.length) connections.delete(viewerId)
-    else connections.set(viewerId, remaining)
+    clearInterval(keepalive)
+    const list = sseClients.get(viewerId) || []
+    const idx  = list.indexOf(res)
+    if (idx !== -1) list.splice(idx, 1)
+    if (!list.length) sseClients.delete(viewerId)
   })
 })
 
-function broadcast(viewerId, payload) {
+function pushSSE(viewerId, payload) {
+  const clients = sseClients.get(String(viewerId)) || []
   const data = `data: ${JSON.stringify(payload)}\n\n`
-  if (viewerId && connections.has(viewerId)) {
-    connections.get(viewerId).forEach(r => r.write(data))
-  } else {
-    connections.forEach(list => list.forEach(r => r.write(data)))
-  }
+  clients.forEach(r => { try { r.write(data) } catch(_) {} })
 }
 
 
-// webhook twitch
+// Webhook Twitch
+app.post('/webhook', (req, res) => {
+  const msgType = req.headers['twitch-eventsub-message-type']
+  const sig     = req.headers['twitch-eventsub-message-signature']
+  const msgId   = req.headers['twitch-eventsub-message-id']
+  const ts      = req.headers['twitch-eventsub-message-timestamp']
 
-function verifyHmac(req) {
-  if (!WEBHOOK_SECRET) return true // pas de secret configuré = on laisse passer (dev)
-  const msgId     = req.headers['twitch-eventsub-message-id'] || ''
-  const timestamp = req.headers['twitch-eventsub-message-timestamp'] || ''
-  const sigHeader = req.headers['twitch-eventsub-message-signature'] || ''
-  const expected  = 'sha256=' + crypto.createHmac('sha256', WEBHOOK_SECRET)
-    .update(msgId + timestamp + (req.rawBody || ''))
-    .digest('hex')
-  try {
-    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sigHeader))
-  } catch {
-    return false
-  }
-}
-
-app.post('/webhook', async (req, res) => {
-  if (!verifyHmac(req)) return res.sendStatus(403)
-
-  if (req.headers['twitch-eventsub-message-type'] === 'webhook_callback_verification') {
-    return res.send(req.body.challenge)
+  const toSign  = msgId + ts + req.rawBody
+  const expected = 'sha256=' + crypto.createHmac('sha256', WEBHOOK_SECRET).update(toSign).digest('hex')
+  if (!crypto.timingSafeEqual(Buffer.from(sig || ''), Buffer.from(expected))) {
+    return res.status(403).send('Forbidden')
   }
 
-  const event    = req.body.event || {}
-  const username = event.user_name || 'Quelqu\'un'
-  const viewerId = event.user_id || null
-  const cost     = event?.reward?.cost || 500
-  const title    = (event?.reward?.title || '').toLowerCase()
-  const rewardId = event.reward?.id || null
-  const login    = (event.broadcaster_user_login || '').toLowerCase()
-
-  const streamerId = twitchToStreamer[login]
-  const streamer   = streamerId ? streamers[streamerId] : null
-  if (!streamer) return res.sendStatus(200)
-
-  console.log(`[reward] id=${rewardId} title="${event.reward?.title}" cost=${cost}`)
-
-  const sets = Object.entries(streamer.sets)
-  let [setId, setData] = sets[0] || []
-
-  for (const [sid, s] of sets) {
-    // Priorité 1 : reward_id explicite dans config.json
-    if (s.config.reward_id && s.config.reward_id === rewardId) {
-      setId = sid; setData = s; break
-    }
-    // Priorité 2 : fallback par titre
-    if (!s.config.reward_id && (title.includes(s.config.nom.toLowerCase()) || title.includes(sid))) {
-      setId = sid; setData = s; break
-    }
+  if (msgType === 'webhook_callback_verification') {
+    return res.status(200).send(req.body.challenge)
   }
 
-  const boosters = setData?.config?.boosters || {}
-  // Trie les boosters par coût décroissant, prend le plus cher que le viewer peut s'offrir
-  const sorted = Object.entries(boosters).sort(([,a],[,b]) => b.cout - a.cout)
-  const match  = sorted.find(([,b]) => cost >= b.cout)
-  const boosterType = match ? match[0] : (sorted[sorted.length - 1]?.[0] || 'single')
+  if (msgType === 'notification') {
+    const event  = req.body.event
+    const title  = (event.reward?.title || '').toLowerCase()
+    const cost   = event.reward?.cost
+    const userId = event.user_id
+    const rewardId = event.reward?.id || null
 
-  console.log(`${username} → ${cost}pts → ${streamerId}/${setId} (${boosterType})`)
+    console.log(`[reward] id=${rewardId} title="${event.reward?.title}" cost=${cost}`)
 
-  if (viewerId) {
-    await db.query(`
-      INSERT INTO viewer_packs (viewer_id, streamer_id, set_id, booster_type, quantite)
-      VALUES ($1, $2, $3, $4, 1)
-      ON CONFLICT (viewer_id, streamer_id, set_id, booster_type)
-      DO UPDATE SET quantite = viewer_packs.quantite + 1
-    `, [viewerId, streamerId, setId, boosterType])
-  }
+    // Trouver le streamer + set
+    let streamerId = null
+    let setId      = null
+    let setData    = null
 
-  broadcast(viewerId, { type: 'pack_recu', booster: boosterType, streamerId, setId, utilisateur: username })
+    // Chercher d'abord par broadcaster_user_login
+    const login = event.broadcaster_user_login?.toLowerCase()
+    const sid   = login ? twitchToStreamer[login] : null
 
-  // Marquer la récompense comme terminée sur Twitch
-  const redemptionId  = event.id
-  const broadcasterId = event.broadcaster_user_id
-  if (redemptionId && broadcasterId && rewardId && TWITCH_CLIENT_ID && twitchUserToken) {
-    const fulfillRedemption = async (retry = false) => {
-      const r = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards/redemptions?broadcaster_id=${broadcasterId}&reward_id=${rewardId}&id=${redemptionId}`, {
-        method: 'PATCH',
-        headers: {
-          'Client-Id': TWITCH_CLIENT_ID,
-          'Authorization': `Bearer ${twitchUserToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status: 'FULFILLED' })
-      })
-      if (r.status === 401 && !retry) {
-        const ok = await refreshTwitchToken()
-        if (ok) return fulfillRedemption(true)
+    const sets = sid
+      ? Object.entries(streamers[sid]?.sets || {}).map(([k,v]) => [k,{...v, _sid: sid}])
+      : Object.entries(streamers).flatMap(([s, st]) => Object.entries(st.sets || {}).map(([k,v]) => [k,{...v, _sid: s}]))
+
+    for (const [k, s] of sets) {
+      if (s.config.reward_id && s.config.reward_id === rewardId) {
+        setId = k; setData = s; streamerId = s._sid; break
       }
-      if (!r.ok) { const t = await r.text(); console.log('Twitch PATCH redemption:', r.status, t) }
     }
-    fulfillRedemption().catch(e => console.log('Twitch PATCH error:', e.message))
+    if (!setId) {
+      for (const [k, s] of sets) {
+        if (!s.config.reward_id && (title.includes(s.config.nom?.toLowerCase()) || title.includes(k))) {
+          setId = k; setData = s; streamerId = s._sid; break
+        }
+      }
+    }
+
+    if (!setId) {
+      console.log(`[webhook] aucun set trouvé pour reward "${event.reward?.title}" (id=${rewardId})`)
+      return res.status(200).send('ok')
+    }
+
+    // Trouver le booster correspondant au coût
+    let boosterKey = null
+    let boosterCfg = null
+    for (const [bk, bc] of Object.entries(setData.config.boosters || {})) {
+      if (bc.cout === cost) { boosterKey = bk; boosterCfg = bc; break }
+    }
+    if (!boosterKey) {
+      // Prendre le moins cher par défaut
+      const sorted = Object.entries(setData.config.boosters || {}).sort((a,b) => a[1].cout - b[1].cout)
+      if (sorted.length) { [boosterKey, boosterCfg] = sorted[0] }
+    }
+
+    if (!boosterKey) {
+      console.log('[webhook] aucun booster configuré pour ce set')
+      return res.status(200).send('ok')
+    }
+
+    // Créditer le pack
+    ;(async () => {
+      try {
+        await db.query(`
+          INSERT INTO viewer_packs (viewer_id, streamer_id, set_id, booster_type, quantite)
+          VALUES ($1, $2, $3, $4, 1)
+          ON CONFLICT (viewer_id, streamer_id, set_id, booster_type)
+          DO UPDATE SET quantite = viewer_packs.quantite + 1
+        `, [userId, streamerId, setId, boosterKey])
+
+        console.log(`[webhook] +1 ${boosterKey} → viewer ${userId} (${streamerId}/${setId})`)
+
+        // Notifier le viewer en temps réel
+        pushSSE(userId, { type: 'pack_recu', streamerId, setId, booster: boosterKey })
+
+        // Marquer la récompense comme fulfillée
+        const appTokenRes = await fetch('https://id.twitch.tv/oauth2/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: TWITCH_CLIENT_ID, client_secret: TWITCH_CLIENT_SECRET,
+            grant_type: 'client_credentials'
+          })
+        })
+        const appToken = (await appTokenRes.json()).access_token
+
+        if (appToken && twitchUserToken) {
+          const patchRes = await fetch(
+            `https://api.twitch.tv/helix/channel_points/custom_rewards/redemptions?broadcaster_id=${event.broadcaster_user_id}&reward_id=${rewardId}&id=${event.id}`,
+            {
+              method: 'PATCH',
+              headers: {
+                'Client-Id': TWITCH_CLIENT_ID,
+                'Authorization': `Bearer ${twitchUserToken}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ status: 'FULFILLED' })
+            }
+          )
+          if (!patchRes.ok) {
+            const err = await patchRes.json().catch(() => ({}))
+            console.log(`[reward] PATCH redemption: ${patchRes.status}`, err)
+          } else {
+            console.log('[reward] redemption marquée FULFILLED')
+          }
+        }
+      } catch(e) {
+        console.error('[webhook] erreur DB:', e)
+      }
+    })()
   }
 
-  res.sendStatus(200)
+  res.status(200).send('ok')
 })
 
 
-// démarrage
-
-initDB().then(() => loadTokensFromDB()).then(() => {
-  if (prod) {
-    const port = process.env.PORT || 3000
-    http.createServer(app).listen(port, () => console.log(`http://localhost:${port}`))
-  } else {
-    const ssl = {
-      key:  fs.readFileSync('key.pem'),
-      cert: fs.readFileSync('cert.pem')
-    }
-    https.createServer(ssl, app).listen(3000, () => console.log('https://localhost:3000'))
-    http.createServer(app).listen(3001, () => console.log('http://localhost:3001 (twitch cli)'))
-  }
-})
+const PORT = process.env.PORT || 3000
+http.createServer(app).listen(PORT, () => console.log(`Karto sur http://localhost:${PORT}`))
