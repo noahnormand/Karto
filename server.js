@@ -547,17 +547,25 @@ app.post('/webhook', async (req, res) => {
   const viewerId = event.user_id || null
   const cost     = event?.reward?.cost || 500
   const title    = (event?.reward?.title || '').toLowerCase()
+  const rewardId = event.reward?.id || null
   const login    = (event.broadcaster_user_login || '').toLowerCase()
 
   const streamerId = twitchToStreamer[login]
   const streamer   = streamerId ? streamers[streamerId] : null
   if (!streamer) return res.sendStatus(200)
 
+  console.log(`[reward] id=${rewardId} title="${event.reward?.title}" cost=${cost}`)
+
   const sets = Object.entries(streamer.sets)
   let [setId, setData] = sets[0] || []
 
   for (const [sid, s] of sets) {
-    if (title.includes(s.config.nom.toLowerCase()) || title.includes(sid)) {
+    // Priorité 1 : reward_id explicite dans config.json
+    if (s.config.reward_id && s.config.reward_id === rewardId) {
+      setId = sid; setData = s; break
+    }
+    // Priorité 2 : fallback par titre
+    if (!s.config.reward_id && (title.includes(s.config.nom.toLowerCase()) || title.includes(sid))) {
       setId = sid; setData = s; break
     }
   }
