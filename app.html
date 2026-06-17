@@ -798,6 +798,108 @@ function mettreAJourPoints() {
   if (lbl) lbl.textContent = setActif ? setId : ''
 }
 
+const COULEURS_RARETE = { 'Commun':'#8a9bb0','Peu Commun':'#4caf80','Rare':'#4a90d9','Épique':'#9b59b6','Légendaire':'#eab308' }
+
+function construireCarte(carte, streamerId, setId) {
+  const couleur = COULEURS_RARETE[carte.rarete] || '#888'
+  const imgUrl  = `streamers/${streamerId}/sets/${setId}/img/${carte.image}`
+  return `<div style="width:100%;height:100%;display:flex;flex-direction:column;border:2px solid ${couleur};background:#0d0d0d;position:relative;overflow:hidden">
+    <div style="height:4px;background:${couleur};flex-shrink:0"></div>
+    <div style="flex:1;position:relative;overflow:hidden">
+      <img src="${imgUrl}" alt="${carte.nom}"
+           style="width:100%;height:100%;object-fit:cover;display:block"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;flex-direction:column;gap:6px;padding:10px;text-align:center">
+        <div style="font-size:10px;color:${couleur};text-transform:uppercase;letter-spacing:.1em;font-weight:700">${carte.type}</div>
+        <div style="font-size:12px;color:#eee;font-weight:900;line-height:1.2">${carte.nom}</div>
+        <div style="font-size:9px;color:${couleur};opacity:.7">${carte.rarete}</div>
+      </div>
+    </div>
+    <div style="padding:4px 6px;background:#111;border-top:1px solid ${couleur}55;flex-shrink:0">
+      <div style="font-size:7px;color:${couleur};text-transform:uppercase;letter-spacing:.08em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${carte.rarete}</div>
+      <div style="font-size:8px;color:#ccc;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${carte.nom}</div>
+    </div>
+  </div>`
+}
+
+let carteDetailCourante = null
+
+function voirCarte(carteId, streamerId, setId) {
+  const data = setData[cleSet(streamerId, setId)]
+  if (!data) return
+  const carte = data.cards.find(c => c.id === carteId)
+  if (!carte) return
+  carteDetailCourante = { carte, streamerId, setId }
+
+  document.getElementById('detailCarteWrap').innerHTML =
+    `<div style="width:100%;height:100%">${construireCarte(carte, streamerId, setId)}</div>`
+
+  document.getElementById('detailType').textContent = carte.type || ''
+  document.getElementById('detailNom').textContent  = carte.nom
+  const couleur = COULEURS_RARETE[carte.rarete] || '#000'
+  const rareteEl = document.getElementById('detailRarete')
+  rareteEl.textContent   = carte.rarete
+  rareteEl.style.color   = couleur
+  rareteEl.style.borderColor = couleur + '60'
+
+  document.getElementById('detailPv').textContent   = carte.pv   ?? '—'
+  document.getElementById('detailAtk').textContent  = carte.attaque ?? '—'
+  document.getElementById('detailDef').textContent  = carte.defense ?? '—'
+  document.getElementById('detailCout').textContent = carte.cout  ?? '—'
+  document.getElementById('detailId').textContent   = carte.id
+
+  const caps = (carte.capacites||[]).map(c => `<b>${c.nom}</b> — ${c.texte}`).join('<br>')
+  const cit  = carte.citation ? `<em style="opacity:.6">${carte.citation}</em>` : ''
+  document.getElementById('detailDesc').innerHTML = [caps, cit].filter(Boolean).join('<br><br>')
+
+  const qty = collectionGlobale[streamerId]?.[setId]?.[carteId] || 0
+  document.getElementById('detailQuantite').textContent = qty > 0 ? `×${qty} en collection` : 'Pas encore obtenue'
+
+  const doublons  = Math.max(0, qty - 1)
+  const gainMap   = { 'Commun':10,'Peu Commun':25,'Rare':60,'Épique':150,'Légendaire':500 }
+  const gain      = gainMap[carte.rarete] || 10
+  const desWrap   = document.getElementById('detailDesenchanterWrap')
+  if (doublons > 0 && utilisateurConnecte && setActif?.streamerId === streamerId && setActif?.setId === setId) {
+    desWrap.style.removeProperty('display')
+    document.getElementById('detailDoublons').textContent    = doublons
+    document.getElementById('detailGainEssence').textContent = gain
+  } else {
+    desWrap.style.display = 'none'
+  }
+
+  const modal = document.getElementById('modalDetail')
+  modal.style.setProperty('display','flex','important')
+  setTimeout(() => modal.style.opacity = '1', 10)
+}
+
+function fermerDetail(event) {
+  if (event && event.target !== event.currentTarget) return
+  const modal = document.getElementById('modalDetail')
+  modal.style.opacity = '0'
+  setTimeout(() => modal.style.setProperty('display','none','important'), 200)
+}
+
+async function desenchanterCarte() {
+  if (!carteDetailCourante || !utilisateurConnecte) return
+  const { carte, streamerId, setId } = carteDetailCourante
+  try {
+    const r = await fetch(`/api/streamer/${streamerId}/set/${setId}/desenchanter/${utilisateurConnecte.id}`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ carteId: carte.id })
+    })
+    const data = await r.json()
+    if (!r.ok) { toast(data.error || 'Erreur', 'rouge'); return }
+    if (collectionGlobale[streamerId]?.[setId]?.[carte.id] > 0)
+      collectionGlobale[streamerId][setId][carte.id]--
+    if (!essenceGlobale[streamerId]) essenceGlobale[streamerId] = {}
+    essenceGlobale[streamerId][setId] = data.essence
+    mettreAJourPoints()
+    toast(`+${data.gain || ''} essence !`, 'vert')
+    fermerDetail()
+    afficherCollection()
+  } catch (e) { toast('Erreur réseau', 'rouge') }
+}
+
 async function selectionnerSet(streamerId, setId) {
   setActif      = { streamerId, setId }
   streamerActif = null
