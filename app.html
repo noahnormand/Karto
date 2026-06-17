@@ -1259,6 +1259,7 @@ function afficherCollection() {
     }
     if (filtreCourant !== 'tous') {
       entrees = entrees.filter(({ carte }) => carte.rarete === filtreCourant || carte.type === filtreCourant)
+    }
     entrees.sort((a,b) => ordre.indexOf(a.carte.rarete) - ordre.indexOf(b.carte.rarete))
 
     const total = entrees.reduce((acc,e) => acc + e.qty, 0)
