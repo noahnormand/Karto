@@ -8,16 +8,74 @@ const CLIENT_ID      = process.env.TWITCH_CLIENT_ID
 const CLIENT_SECRET  = process.env.TWITCH_CLIENT_SECRET
 const BROADCASTER_ID = process.env.TWITCH_BROADCASTER_ID
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET
-const USER_TOKEN     = process.env.TWITCH_USER_TOKEN
 const CALLBACK_URL   = process.env.CALLBACK_URL || 'https://karto-182e.onrender.com/webhook'
 
 if (!CLIENT_ID || !CLIENT_SECRET || !BROADCASTER_ID || !WEBHOOK_SECRET) {
   console.error('Variables manquantes dans .env')
   process.exit(1)
 }
-if (!USER_TOKEN) {
-  console.error('TWITCH_USER_TOKEN manquant. Lance d\'abord : node get_user_token.js')
-  process.exit(1)
+
+// Retourne un user token valide : DB en priorité, sinon refresh depuis .env
+async function getFreshUserToken() {
+  // 1. Essayer de lire le token depuis la DB (le serveur le garde à jour)
+  if (process.env.DATABASE_URL) {
+    try {
+      const { Pool } = require('pg')
+      const db = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
+      const { rows } = await db.query("SELECT value FROM karto_config WHERE key = 'TWITCH_USER_TOKEN'")
+      await db.end()
+      if (rows[0]?.value) {
+        const v = await fetch('https://id.twitch.tv/oauth2/validate', {
+          headers: { 'Authorization': `OAuth ${rows[0].value}` }
+        })
+        if (v.ok) return rows[0].value
+      }
+    } catch (_) {}
+  }
+
+  // 2. Token du .env
+  const current = process.env.TWITCH_USER_TOKEN
+  if (current) {
+    const v = await fetch('https://id.twitch.tv/oauth2/validate', {
+      headers: { 'Authorization': `OAuth ${current}` }
+    })
+    if (v.ok) return current
+  }
+
+  // 3. Refresh
+  const refresh = process.env.TWITCH_REFRESH_TOKEN
+  if (!refresh) {
+    console.error('Token expiré et TWITCH_REFRESH_TOKEN absent du .env')
+    console.error('Relance : node get_user_token.js')
+    process.exit(1)
+  }
+
+  console.log('Token expiré, refresh en cours...')
+  const r = await fetch('https://id.twitch.tv/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type:    'refresh_token',
+      refresh_token: refresh,
+      client_id:     CLIENT_ID,
+      client_secret: CLIENT_SECRET
+    })
+  })
+  const data = await r.json()
+  if (!data.access_token) {
+    console.error('Refresh échoué :', data)
+    console.error('Relance : node get_user_token.js')
+    process.exit(1)
+  }
+
+  // Mettre à jour le .env
+  const fs = require('fs')
+  let env  = fs.readFileSync('.env', 'utf-8')
+  env = env.replace(/^TWITCH_USER_TOKEN=.*/m,    `TWITCH_USER_TOKEN=${data.access_token}`)
+  env = env.replace(/^TWITCH_REFRESH_TOKEN=.*/m, `TWITCH_REFRESH_TOKEN=${data.refresh_token}`)
+  fs.writeFileSync('.env', env)
+  console.log('✓ Token rafraîchi et .env mis à jour')
+  return data.access_token
 }
 
 async function getAppToken() {
@@ -36,12 +94,12 @@ async function getAppToken() {
 }
 
 // Crée la récompense via l'API (avec user token) → l'app en est propriétaire
-async function createReward(name, cost) {
+async function createReward(userToken, name, cost) {
   const res = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${BROADCASTER_ID}`, {
     method: 'POST',
     headers: {
       'Client-Id':     CLIENT_ID,
-      'Authorization': `Bearer ${USER_TOKEN}`,
+      'Authorization': `Bearer ${userToken}`,
       'Content-Type':  'application/json'
     },
     body: JSON.stringify({ title: name, cost, is_enabled: true })
@@ -50,14 +108,34 @@ async function createReward(name, cost) {
 }
 
 // Liste les récompenses existantes créées par l'app
-async function listRewards() {
+async function listRewards(userToken) {
   const res = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${BROADCASTER_ID}&only_manageable_rewards=true`, {
     headers: {
       'Client-Id':     CLIENT_ID,
-      'Authorization': `Bearer ${USER_TOKEN}`
+      'Authorization': `Bearer ${userToken}`
     }
   })
   return res.json()
+}
+
+// Liste TOUTES les récompenses d'un broadcaster (y compris manuelles)
+async function listAllRewards(broadcasterId, userToken) {
+  const res = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${broadcasterId}`, {
+    headers: {
+      'Client-Id':     CLIENT_ID,
+      'Authorization': `Bearer ${userToken}`
+    }
+  })
+  return res.json()
+}
+
+// Récupère le broadcaster_id depuis un login twitch
+async function getBroadcasterId(appToken, login) {
+  const res = await fetch(`https://api.twitch.tv/helix/users?login=${login}`, {
+    headers: { 'Client-Id': CLIENT_ID, 'Authorization': `Bearer ${appToken}` }
+  })
+  const data = await res.json()
+  return data.data?.[0]?.id || null
 }
 
 async function registerEventSub(appToken, rewardId) {
@@ -104,12 +182,46 @@ async function deleteEventSub(appToken, id) {
 ;(async () => {
   try {
     console.log('Obtention du token app...')
-    const appToken = await getAppToken()
+    const appToken  = await getAppToken()
+    const userToken = await getFreshUserToken()
+
+    // node register_eventsub.js rewards
+    if (process.argv[2] === 'rewards') {
+      const fs   = require('fs')
+      const path = require('path')
+      const streamersDir = path.join(__dirname, 'streamers')
+      const streamerIds  = fs.existsSync(streamersDir) ? fs.readdirSync(streamersDir) : []
+
+      for (const id of streamerIds) {
+        const configPath = path.join(streamersDir, id, 'config.json')
+        if (!fs.existsSync(configPath)) continue
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        const login  = config.twitch_login
+
+        console.log(`\n${config.nom} (${id})${login ? ` — @${login}` : ''}`)
+
+        if (!login) { console.log('  ⚠ pas de twitch_login dans config.json'); continue }
+
+        const bid = await getBroadcasterId(appToken, login)
+        if (!bid) { console.log('  ⚠ broadcaster introuvable'); continue }
+
+        const result = await listAllRewards(bid, userToken)
+        if (result.error) { console.log(`  ⚠ ${result.message}`); continue }
+
+        const rewards = result.data || []
+        if (!rewards.length) { console.log('  (aucune récompense)'); continue }
+
+        rewards.forEach(r => {
+          console.log(`  "${r.title}" : "${r.id}"  [${r.cost} pts${r.is_enabled ? '' : ' — désactivée'}]`)
+        })
+      }
+      return
+    }
 
     // node register_eventsub.js list
     if (process.argv[2] === 'list') {
       const list = await listEventSub(appToken)
-      const rewards = await listRewards()
+      const rewards = await listRewards(userToken)
       const rewardNames = {}
       rewards.data?.forEach(r => { rewardNames[r.id] = r.title })
       list.data?.forEach(s => {
@@ -129,39 +241,10 @@ async function deleteEventSub(appToken, id) {
       return
     }
 
-    // Vérifie les récompenses déjà créées par l'app
-    console.log('Vérification des récompenses existantes...')
-    const existing = await listRewards()
-    let rewardId = null
-
-    if (existing.data?.length > 0) {
-      console.log('Récompenses gérées par l\'app :')
-      existing.data.forEach(r => console.log(`  [${r.id}] "${r.title}" — ${r.cost} pts`))
-      rewardId = existing.data[0].id
-      console.log(`\nUtilisation de la récompense "${existing.data[0].title}" (${rewardId})`)
-    } else {
-      console.log('Aucune récompense existante, création d\'une nouvelle...')
-      const reward = await createReward('Booster Karto', 500)
-      if (reward.data?.[0]) {
-        rewardId = reward.data[0].id
-        console.log(`Récompense créée : "${reward.data[0].title}" (${rewardId})`)
-        // Sauvegarde l'ID dans .env
-        const fs = require('fs')
-        let env = fs.readFileSync('.env', 'utf8')
-        if (env.includes('TWITCH_REWARD_ID=')) {
-          env = env.replace(/TWITCH_REWARD_ID=.*/, `TWITCH_REWARD_ID=${rewardId}`)
-        } else {
-          env += `\nTWITCH_REWARD_ID=${rewardId}`
-        }
-        fs.writeFileSync('.env', env)
-      } else {
-        console.error('Erreur création récompense:', JSON.stringify(reward))
-        process.exit(1)
-      }
-    }
-
-    console.log('\nEnregistrement EventSub...')
-    const result = await registerEventSub(appToken, rewardId)
+    // Écoute toutes les récompenses de la chaîne (sans filtre reward_id)
+    // Le streamer crée sa propre récompense avec le coût qu'il veut
+    console.log('\nEnregistrement EventSub (toutes récompenses)...')
+    const result = await registerEventSub(appToken, null)
     console.log(JSON.stringify(result, null, 2))
 
     if (result.data?.[0]?.status === 'webhook_callback_verification_pending') {
