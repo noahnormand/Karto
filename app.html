@@ -783,6 +783,21 @@ function toggleStreamer(streamerId, suffix) {
 
 
 
+function mettreAJourPoints() {
+  if (!setActif) return
+  const { streamerId, setId } = setActif
+  const essence = essenceActuelle(streamerId, setId)
+  const streamer = streamers.find(s => s.id === streamerId)
+  const wrap = document.getElementById('badgePointsWrap')
+  const dot  = document.getElementById('badgePointsDot')
+  const pts  = document.getElementById('badgePoints')
+  const lbl  = document.getElementById('badgePointsLabel')
+  if (wrap) wrap.style.removeProperty('display')
+  if (dot && streamer?.couleur) dot.style.background = streamer.couleur
+  if (pts) pts.textContent = essence + ' essence'
+  if (lbl) lbl.textContent = setActif ? setId : ''
+}
+
 async function selectionnerSet(streamerId, setId) {
   setActif      = { streamerId, setId }
   streamerActif = null
