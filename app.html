@@ -907,8 +907,9 @@ async function desenchanterCarte() {
     essenceGlobale[streamerId][setId] = data.essence
     mettreAJourPoints()
     toast(`+${data.gain || ''} essence !`, 'vert')
-    fermerDetail()
     afficherCollection()
+    // Rafraîchir la modal avec les nouvelles quantités
+    voirCarte(carte.id, streamerId, setId)
   } catch (e) { toast('Erreur réseau', 'rouge') }
 }
 
