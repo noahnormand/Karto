@@ -592,7 +592,6 @@ app.post('/webhook', async (req, res) => {
   // Marquer la récompense comme terminée sur Twitch
   const redemptionId  = event.id
   const broadcasterId = event.broadcaster_user_id
-  const rewardId      = event.reward?.id
   if (redemptionId && broadcasterId && rewardId && TWITCH_CLIENT_ID && twitchUserToken) {
     const fulfillRedemption = async (retry = false) => {
       const r = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards/redemptions?broadcaster_id=${broadcasterId}&reward_id=${rewardId}&id=${redemptionId}`, {
