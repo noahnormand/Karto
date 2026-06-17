@@ -3,19 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Karto - Cartes à collectionner pour streamers Twitch</title>
+  <title>Karto - Ton TCG physique, en ligne</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:       #f0f0f0;
-      --white:    #ffffff;
-      --black:    #111111;
-      --gray:     #555555;
-      --border:   #c8c8c8;
-      --purple:   #9146ff;
+      --bg:     #f0f0f0;
+      --white:  #ffffff;
+      --black:  #111111;
+      --gray:   #666666;
+      --border: #cacaca;
+      --purple: #9146ff;
     }
+
+    html { scroll-behavior: smooth; }
 
     body {
       background: var(--bg);
@@ -25,108 +27,123 @@
       overflow-x: hidden;
     }
 
-    /* Texture diagonale */
+    /* Texture */
     body::before {
       content: '';
       position: fixed; inset: 0; z-index: 0; pointer-events: none;
       background-image: repeating-linear-gradient(
-        -45deg,
-        transparent,
-        transparent 6px,
-        rgba(0,0,0,0.025) 6px,
-        rgba(0,0,0,0.025) 7px
+        -45deg, transparent, transparent 6px,
+        rgba(0,0,0,0.022) 6px, rgba(0,0,0,0.022) 7px
       );
     }
-
     * { position: relative; z-index: 1; }
-
     a { color: inherit; text-decoration: none; }
 
-    /* NAV */
+    /* ─── NAV ─── */
     nav {
       position: fixed; top: 0; left: 0; right: 0; z-index: 100;
       display: flex; align-items: center; justify-content: space-between;
-      padding: 0 48px; height: 64px;
+      height: 60px; padding: 0 48px;
       background: var(--bg);
       border-bottom: 1px solid var(--black);
     }
-    .nav-logo {
-      font-size: 22px; font-weight: 900; letter-spacing: -0.02em;
-      text-transform: uppercase;
-    }
-    .nav-links { display: flex; gap: 40px; }
-    .nav-links a {
-      font-size: 13px; font-weight: 600; letter-spacing: 0.06em;
-      text-transform: uppercase; color: var(--gray);
-      transition: color .15s;
-    }
+    .nav-logo { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em; }
+    .nav-links { display: flex; gap: 36px; }
+    .nav-links a { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gray); transition: color .15s; }
     .nav-links a:hover { color: var(--black); }
     .btn-twitch {
       display: inline-flex; align-items: center; gap: 8px;
       background: var(--purple); color: #fff;
-      padding: 10px 20px; font-size: 13px; font-weight: 700;
-      letter-spacing: 0.04em; text-transform: uppercase;
-      border: none; cursor: pointer; transition: opacity .15s;
+      padding: 9px 18px; font-size: 12px; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      border: none; cursor: pointer; transition: opacity .15s; white-space: nowrap;
     }
     .btn-twitch:hover { opacity: 0.85; }
-    .btn-twitch svg { width: 16px; height: 16px; fill: #fff; flex-shrink: 0; }
+    .btn-twitch svg { width: 14px; height: 14px; fill: #fff; flex-shrink: 0; }
 
-    /* HERO */
+    /* Burger mobile */
+    .burger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 4px; }
+    .burger span { display: block; width: 22px; height: 2px; background: var(--black); }
+
+    /* Mobile menu */
+    .mobile-menu {
+      display: none; position: fixed; top: 60px; left: 0; right: 0; z-index: 99;
+      background: var(--bg); border-bottom: 1px solid var(--black);
+      flex-direction: column;
+    }
+    .mobile-menu.open { display: flex; }
+    .mobile-menu a {
+      padding: 18px 24px; font-size: 13px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      border-bottom: 1px solid var(--border); color: var(--black);
+    }
+    .mobile-menu .btn-twitch { margin: 16px 24px 20px; }
+
+    /* ─── HERO ─── */
     .hero {
       min-height: 100vh;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      text-align: center; padding: 120px 24px 80px;
+      text-align: center; padding: 100px 24px 80px;
       border-bottom: 1px solid var(--black);
     }
+    .hero-tag {
+      display: inline-block;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--gray);
+      border: 1px solid var(--border); padding: 6px 14px;
+      margin-bottom: 40px;
+    }
     .hero h1 {
-      font-size: clamp(56px, 9vw, 120px);
+      font-size: clamp(44px, 9vw, 112px);
       font-weight: 900; letter-spacing: -0.04em;
-      line-height: 0.95; text-transform: uppercase;
+      text-transform: uppercase; line-height: 0.92;
       margin-bottom: 28px;
     }
     .hero p {
-      font-size: clamp(15px, 1.5vw, 18px);
-      color: var(--gray); max-width: 480px;
-      margin: 0 auto 48px;
+      font-size: clamp(15px, 1.8vw, 18px);
+      color: var(--gray); max-width: 500px;
+      margin: 0 auto 48px; line-height: 1.6;
     }
     .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
     .btn-black {
       display: inline-flex; align-items: center; gap: 8px;
       background: var(--black); color: #fff;
-      padding: 16px 32px; font-size: 13px; font-weight: 700;
+      padding: 15px 28px; font-size: 12px; font-weight: 700;
       letter-spacing: 0.08em; text-transform: uppercase;
-      border: none; cursor: pointer; transition: opacity .15s;
+      border: 1px solid var(--black); cursor: pointer; transition: opacity .15s;
+      white-space: nowrap;
     }
     .btn-black:hover { opacity: 0.8; }
     .btn-outline {
       display: inline-flex; align-items: center; gap: 8px;
       background: transparent; color: var(--black);
-      padding: 16px 32px; font-size: 13px; font-weight: 700;
+      padding: 15px 28px; font-size: 12px; font-weight: 700;
       letter-spacing: 0.08em; text-transform: uppercase;
-      border: 1px solid var(--black); cursor: pointer; transition: background .15s, color .15s;
+      border: 1px solid var(--black); cursor: pointer;
+      transition: background .15s, color .15s; white-space: nowrap;
     }
     .btn-outline:hover { background: var(--black); color: #fff; }
 
-    /* CARDS PREVIEW */
-    .cards-preview {
-      display: flex; gap: 16px; justify-content: center; align-items: flex-end;
-      margin-top: 80px;
+    /* Cards fan */
+    .cards-fan {
+      display: flex; gap: 20px; justify-content: center; align-items: flex-end;
+      margin-top: 72px;
     }
-    .card-mock {
-      width: 90px; flex-shrink: 0;
-      aspect-ratio: 63/88;
-      background: var(--white);
-      border: 1px solid var(--border);
+    .card-fan {
+      width: 88px; aspect-ratio: 63/88;
+      background: var(--white); border: 1px solid var(--border);
       display: flex; align-items: center; justify-content: center;
-      font-size: 22px; font-weight: 900; color: #ccc;
-      transition: transform .2s;
+      font-size: 28px; font-weight: 900; color: var(--border);
+      flex-shrink: 0;
     }
-    .card-mock:nth-child(1) { transform: rotate(-5deg) translateY(8px); }
-    .card-mock:nth-child(2) { transform: rotate(0deg); border-color: var(--black); color: var(--black); }
-    .card-mock:nth-child(3) { transform: rotate(5deg) translateY(8px); }
+    .card-fan.active { border-color: var(--black); color: var(--black); }
+    .card-fan:nth-child(1) { transform: rotate(-6deg) translateY(10px); }
+    .card-fan:nth-child(2) { transform: rotate(0deg); }
+    .card-fan:nth-child(3) { transform: rotate(6deg) translateY(10px); }
 
-    /* SECTION BASE */
+    /* ─── SECTIONS ─── */
     section { border-bottom: 1px solid var(--black); }
     .container { max-width: 1100px; margin: 0 auto; padding: 80px 48px; }
     .section-label {
@@ -134,130 +151,121 @@
       text-transform: uppercase; color: var(--gray); margin-bottom: 20px;
     }
     .section-title {
-      font-size: clamp(32px, 4vw, 56px);
+      font-size: clamp(30px, 4.5vw, 60px);
       font-weight: 900; letter-spacing: -0.03em;
-      text-transform: uppercase; line-height: 1;
+      text-transform: uppercase; line-height: 0.95;
       margin-bottom: 20px;
     }
-    .section-sub {
-      font-size: 16px; color: var(--gray); max-width: 500px;
-    }
+    .section-sub { font-size: 16px; color: var(--gray); max-width: 520px; line-height: 1.6; }
 
-    /* HOW IT WORKS */
+    /* ─── HOW ─── */
     .steps {
       display: grid; grid-template-columns: repeat(4, 1fr);
-      border-top: 1px solid var(--black); margin-top: 64px;
+      border-top: 1px solid var(--black); margin-top: 56px;
     }
-    .step {
-      padding: 40px 32px;
-      border-right: 1px solid var(--black);
-    }
+    .step { padding: 36px 28px; border-right: 1px solid var(--black); }
     .step:last-child { border-right: none; }
     .step-num {
       font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
-      text-transform: uppercase; color: var(--gray);
-      margin-bottom: 24px;
+      text-transform: uppercase; color: var(--gray); margin-bottom: 20px;
     }
-    .step h3 {
-      font-size: 16px; font-weight: 800; text-transform: uppercase;
-      letter-spacing: -0.01em; margin-bottom: 10px;
-    }
+    .step h3 { font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.01em; margin-bottom: 8px; }
     .step p { font-size: 13px; color: var(--gray); line-height: 1.6; }
 
-    /* PERKS */
+    /* ─── PERKS ─── */
     .perks {
       display: grid; grid-template-columns: repeat(2, 1fr);
-      border-top: 1px solid var(--black); margin-top: 64px;
+      border-top: 1px solid var(--black); margin-top: 56px;
     }
-    .perk {
-      padding: 40px 40px;
-      border-right: 1px solid var(--black);
-      border-bottom: 1px solid var(--black);
-    }
+    .perk { padding: 40px; border-right: 1px solid var(--black); border-bottom: 1px solid var(--black); }
     .perk:nth-child(even) { border-right: none; }
     .perk:nth-child(3), .perk:nth-child(4) { border-bottom: none; }
     .perk-num {
-      font-size: 48px; font-weight: 900; letter-spacing: -0.04em;
+      font-size: 52px; font-weight: 900; letter-spacing: -0.04em;
       color: var(--border); line-height: 1; margin-bottom: 20px;
     }
-    .perk h3 {
-      font-size: 16px; font-weight: 800; text-transform: uppercase;
-      letter-spacing: -0.01em; margin-bottom: 8px;
-    }
+    .perk h3 { font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.01em; margin-bottom: 8px; }
     .perk p { font-size: 13px; color: var(--gray); line-height: 1.6; }
 
-    /* CONTACT */
+    /* ─── CONTACT ─── */
     .contact-grid {
       display: grid; grid-template-columns: 1fr 1fr;
-      gap: 80px; margin-top: 64px; align-items: start;
+      gap: 80px; margin-top: 56px; align-items: start;
     }
-    .contact-info h3 {
-      font-size: 20px; font-weight: 800; text-transform: uppercase;
-      letter-spacing: -0.02em; margin-bottom: 16px;
-    }
-    .contact-info p { font-size: 14px; color: var(--gray); line-height: 1.7; margin-bottom: 12px; }
+    .contact-info p { font-size: 15px; color: var(--gray); line-height: 1.7; margin-bottom: 14px; }
+    .contact-info strong { color: var(--black); font-weight: 700; }
 
-    .form-group { margin-bottom: 16px; }
+    .form-group { margin-bottom: 14px; }
     .form-group label {
       display: block; font-size: 11px; font-weight: 700;
       letter-spacing: 0.1em; text-transform: uppercase;
       color: var(--gray); margin-bottom: 6px;
     }
     .form-group input,
-    .form-group textarea,
-    .form-group select {
+    .form-group textarea {
       width: 100%; background: var(--white);
       border: 1px solid var(--border); color: var(--black);
       padding: 11px 14px; font-size: 14px; font-family: inherit;
-      outline: none; transition: border-color .15s;
-      resize: vertical; appearance: none;
+      outline: none; transition: border-color .15s; resize: vertical;
     }
     .form-group input:focus,
     .form-group textarea:focus { border-color: var(--black); }
-    .form-group textarea { min-height: 90px; }
-
-    /* Honeypot */
+    .form-group textarea { min-height: 88px; }
     .hp-field { display: none; }
 
-    .form-success {
-      display: none;
-      border: 1px solid var(--black);
-      padding: 16px; font-size: 13px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.05em;
-      margin-top: 12px; background: var(--white);
+    .form-submit { width: 100%; justify-content: center; margin-top: 4px; }
+    .form-notice {
+      display: none; padding: 14px 16px;
+      font-size: 12px; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      margin-top: 12px; border: 1px solid var(--black);
     }
-    .form-error {
-      display: none;
-      border: 1px solid #c00;
-      padding: 16px; font-size: 13px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.05em;
-      margin-top: 12px; color: #c00;
-    }
+    .form-notice.error { border-color: #cc0000; color: #cc0000; }
 
-    /* FOOTER */
+    /* ─── FOOTER ─── */
     footer {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 24px 48px; flex-wrap: wrap; gap: 12px;
+      padding: 20px 48px; flex-wrap: wrap; gap: 12px;
     }
-    .footer-logo { font-size: 16px; font-weight: 900; text-transform: uppercase; }
+    .footer-logo { font-size: 15px; font-weight: 900; text-transform: uppercase; }
     footer p { font-size: 12px; color: var(--gray); letter-spacing: 0.04em; }
 
-    /* RESPONSIVE */
-    @media (max-width: 900px) {
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 1024px) {
       .steps { grid-template-columns: repeat(2, 1fr); }
       .step:nth-child(2) { border-right: none; }
+      .step:nth-child(1), .step:nth-child(2) { border-bottom: 1px solid var(--black); }
       .step:nth-child(3) { border-right: 1px solid var(--black); }
-      .contact-grid { grid-template-columns: 1fr; gap: 40px; }
+    }
+
+    @media (max-width: 768px) {
       nav { padding: 0 20px; }
       .nav-links { display: none; }
-      .container { padding: 60px 24px; }
-      footer { padding: 20px 24px; }
+      .nav-cta-desktop { display: none; }
+      .burger { display: flex; }
+
+      .container { padding: 56px 20px; }
+
+      .contact-grid { grid-template-columns: 1fr; gap: 40px; }
+
+      footer { padding: 20px; }
     }
+
     @media (max-width: 600px) {
       .steps { grid-template-columns: 1fr; }
+      .step { border-right: none; border-bottom: 1px solid var(--black); }
+      .step:last-child { border-bottom: none; }
+
       .perks { grid-template-columns: 1fr; }
-      .step { border-right: none; }
-      .perk { border-right: none; }
+      .perk { border-right: none; border-bottom: 1px solid var(--black); }
+      .perk:last-child { border-bottom: none; }
+
+      .hero h1 { font-size: 44px; }
+      .cards-fan { gap: 12px; }
+      .card-fan { width: 72px; }
+
+      .hero-actions { flex-direction: column; align-items: stretch; }
+      .btn-black, .btn-outline { justify-content: center; }
     }
   </style>
 </head>
@@ -268,29 +276,43 @@
   <div class="nav-logo">Karto</div>
   <div class="nav-links">
     <a href="#comment">Comment ça marche</a>
-    <a href="#streamers">Pour les streamers</a>
+    <a href="#streamers">Pour les créateurs</a>
     <a href="#contact">Rejoindre</a>
   </div>
-  <a href="/app.html">
+  <a href="/app.html" class="nav-cta-desktop">
     <button class="btn-twitch">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
       Voir la démo
     </button>
   </a>
+  <div class="burger" id="burger" onclick="toggleMenu()">
+    <span></span><span></span><span></span>
+  </div>
 </nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="#comment" onclick="toggleMenu()">Comment ça marche</a>
+  <a href="#streamers" onclick="toggleMenu()">Pour les créateurs</a>
+  <a href="#contact" onclick="toggleMenu()">Rejoindre</a>
+  <a href="/app.html"><button class="btn-twitch">
+    <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:#fff"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
+    Voir la démo
+  </button></a>
+</div>
 
 <!-- HERO -->
 <section class="hero">
-  <h1>Tes viewers<br>méritent de<br>collectionner.</h1>
-  <p>Karto transforme tes points de chaîne en boosters de cartes à collectionner. Un univers unique pour chaque streamer.</p>
+  <div class="hero-tag">Bêta ouverte aux créateurs</div>
+  <h1>Ton TCG<br>physique,<br>en ligne.</h1>
+  <p>Tu as un jeu de cartes ? Karto le digitalise sur Twitch. Tes viewers ouvrent des boosters avec leurs points de chaîne et collectionnent tes cartes en ligne.</p>
   <div class="hero-actions">
-    <a href="#contact"><button class="btn-black">Devenir streamer partenaire</button></a>
+    <a href="#contact"><button class="btn-black">Rejoindre la bêta</button></a>
     <a href="/app.html"><button class="btn-outline">Voir la démo →</button></a>
   </div>
-  <div class="cards-preview">
-    <div class="card-mock">N</div>
-    <div class="card-mock">2</div>
-    <div class="card-mock">O</div>
+  <div class="cards-fan">
+    <div class="card-fan">N</div>
+    <div class="card-fan active">2</div>
+    <div class="card-fan">O</div>
   </div>
 </section>
 
@@ -298,44 +320,44 @@
 <section id="comment">
   <div class="container">
     <p class="section-label">Comment ça marche</p>
-    <h2 class="section-title">Simple pour le viewer.<br>Zéro effort pour toi.</h2>
-    <p class="section-sub">Le viewer rachète une récompense de points de chaîne et reçoit un booster à ouvrir quand il veut.</p>
+    <h2 class="section-title">Simple pour<br>tout le monde.</h2>
+    <p class="section-sub">On intègre ton TCG existant sur Karto. Tes viewers collectionnent tes cartes avec leurs points de chaîne Twitch.</p>
     <div class="steps">
       <div class="step">
         <div class="step-num">Étape 01</div>
-        <h3>Le viewer dépense ses points</h3>
-        <p>Il rachète ta récompense Twitch. Les points partent, le booster arrive en temps réel.</p>
+        <h3>Tu nous envoies ton TCG</h3>
+        <p>Images, noms, raretés - on intègre ton jeu de cartes existant sur la plateforme.</p>
       </div>
       <div class="step">
         <div class="step-num">Étape 02</div>
-        <h3>Le booster arrive instantanément</h3>
-        <p>Karto reçoit la notification et crédite le booster sans aucune action de ta part.</p>
+        <h3>On crée ta récompense Twitch</h3>
+        <p>Tes viewers rachètent une récompense avec leurs points de chaîne pour obtenir un booster.</p>
       </div>
       <div class="step">
         <div class="step-num">Étape 03</div>
-        <h3>Il ouvre ses cartes</h3>
+        <h3>Ils ouvrent leurs boosters</h3>
         <p>Révélation carte par carte avec animations. Communes, Rares, Légendaires - chaque ouverture est unique.</p>
       </div>
       <div class="step">
         <div class="step-num">Étape 04</div>
-        <h3>Il complète sa collection</h3>
-        <p>Toutes les cartes visibles, possédées ou non. La progression pousse à revenir sur ton stream.</p>
+        <h3>Ils complètent la collection</h3>
+        <p>Toutes tes cartes visibles, possédées ou non. La progression pousse à revenir sur ton stream.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- FOR STREAMERS -->
+<!-- FOR CREATORS -->
 <section id="streamers">
   <div class="container">
-    <p class="section-label">Pour les streamers</p>
-    <h2 class="section-title">Ton univers,<br>tes règles.</h2>
-    <p class="section-sub">On crée un set sur mesure avec tes personnages, ton lore, tes couleurs. Chaque streamer a sa propre identité.</p>
+    <p class="section-label">Pour les créateurs</p>
+    <h2 class="section-title">Tu as déjà<br>les cartes.</h2>
+    <p class="section-sub">Pas besoin de créer quoi que ce soit. On prend ton TCG physique et on le met en ligne.</p>
     <div class="perks">
       <div class="perk">
         <div class="perk-num">01</div>
-        <h3>Tes cartes, ton univers</h3>
-        <p>Personnages, raretés, illustrations - tout est customisé à ton image. On construit le set ensemble.</p>
+        <h3>Zéro création requise</h3>
+        <p>Ton TCG existe déjà. On l'intègre tel quel - illustrations, noms, raretés. Rien à refaire.</p>
       </div>
       <div class="perk">
         <div class="perk-num">02</div>
@@ -344,13 +366,13 @@
       </div>
       <div class="perk">
         <div class="perk-num">03</div>
-        <h3>Tes viewers reviennent plus souvent</h3>
-        <p>Collectionner crée de l'attachement. Les viewers farm les points pour ouvrir des boosters sur ton stream.</p>
+        <h3>Tes viewers restent plus longtemps</h3>
+        <p>Collectionner crée de l'attachement. Ils farm les points pour ouvrir des boosters sur ton stream.</p>
       </div>
       <div class="perk">
         <div class="perk-num">04</div>
-        <h3>Tu choisis les règles</h3>
-        <p>Nombre de cartes, raretés, coût en points, types de boosters - tout est configurable selon ta communauté.</p>
+        <h3>Tu gardes le contrôle</h3>
+        <p>Coût en points, types de boosters, raretés - tout est configurable selon ta communauté.</p>
       </div>
     </div>
   </div>
@@ -360,17 +382,14 @@
 <section id="contact">
   <div class="container">
     <p class="section-label">Rejoindre la bêta</p>
-    <h2 class="section-title">Tu veux être<br>partenaire ?</h2>
+    <h2 class="section-title">Tu as un TCG ?<br>Parlons-en.</h2>
     <div class="contact-grid">
       <div class="contact-info">
-        <p>On est en bêta et on sélectionne les premiers streamers partenaires. On construit le set ensemble - cartes, raretés, univers.</p>
+        <p>On sélectionne les premiers créateurs partenaires. <strong>Si tu as un TCG physique existant</strong>, on peut le mettre en ligne rapidement.</p>
         <p>Laisse tes infos et on revient vers toi dans les 48h.</p>
       </div>
       <form id="contactForm" novalidate>
-        <!-- Honeypot anti-bot -->
-        <div class="hp-field">
-          <input type="text" name="website" tabindex="-1" autocomplete="off" />
-        </div>
+        <div class="hp-field"><input type="text" name="website" tabindex="-1" autocomplete="off" /></div>
         <div class="form-group">
           <label>Login Twitch *</label>
           <input type="text" name="twitch" placeholder="ton_login" required />
@@ -380,22 +399,16 @@
           <input type="email" name="email" placeholder="toi@exemple.com" required />
         </div>
         <div class="form-group">
-          <label>Lien vers ton TCG (si tu en as un)</label>
-          <input type="url" name="tcg_url" placeholder="https://..." />
+          <label>Lien vers ton TCG *</label>
+          <input type="url" name="tcg_url" placeholder="https://..." required />
         </div>
         <div class="form-group">
-          <label>Ta communauté en quelques mots</label>
-          <textarea name="message" placeholder="Thématique, taille de ta communauté, idées pour ton set..."></textarea>
+          <label>Quelques mots sur ta communauté</label>
+          <textarea name="message" placeholder="Taille de ta communauté, univers de tes cartes, combien de cartes dans ton set..."></textarea>
         </div>
-        <button type="submit" class="btn-black" style="width:100%;justify-content:center;">
-          Envoyer ma candidature
-        </button>
-        <div class="form-success" id="formSuccess">
-          Candidature reçue - on te répond dans les 48h.
-        </div>
-        <div class="form-error" id="formError">
-          Erreur - vérifie les champs et réessaie.
-        </div>
+        <button type="submit" class="btn-black form-submit">Envoyer ma candidature</button>
+        <div class="form-notice" id="formSuccess">Candidature reçue - on te répond dans les 48h.</div>
+        <div class="form-notice error" id="formError"></div>
       </form>
     </div>
   </div>
@@ -408,11 +421,13 @@
 </footer>
 
 <script>
-  const form = document.getElementById('contactForm')
+  function toggleMenu() {
+    document.getElementById('mobileMenu').classList.toggle('open')
+  }
 
-  form.addEventListener('submit', async (e) => {
+  document.getElementById('contactForm').addEventListener('submit', async (e) => {
     e.preventDefault()
-
+    const form    = e.target
     const success = document.getElementById('formSuccess')
     const error   = document.getElementById('formError')
     success.style.display = 'none'
@@ -423,42 +438,41 @@
       email:    form.email.value.trim(),
       tcg_url:  form.tcg_url.value.trim(),
       message:  form.message.value.trim(),
-      website:  form.website.value // honeypot
+      website:  form.website.value
     }
 
-    if (!data.twitch || !data.email) {
-      error.textContent = 'Login Twitch et email requis.'
-      error.style.display = 'block'
+    if (!data.twitch || !data.email || !data.tcg_url) {
+      error.textContent    = 'Login Twitch, email et lien TCG requis.'
+      error.style.display  = 'block'
       return
     }
 
     const btn = form.querySelector('button[type="submit"]')
-    btn.disabled = true
-    btn.textContent = 'Envoi...'
+    btn.disabled    = true
+    btn.textContent = 'Envoi en cours...'
 
     try {
       const res = await fetch('/api/contact', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body:    JSON.stringify(data)
       })
       if (res.ok) {
         form.reset()
         success.style.display = 'block'
       } else {
         const json = await res.json().catch(() => ({}))
-        error.textContent = json.error || 'Erreur serveur - réessaie.'
+        error.textContent   = json.error || 'Erreur serveur - réessaie.'
         error.style.display = 'block'
       }
     } catch {
-      error.textContent = 'Erreur réseau - réessaie.'
+      error.textContent   = 'Erreur réseau - réessaie.'
       error.style.display = 'block'
     } finally {
-      btn.disabled = false
+      btn.disabled    = false
       btn.textContent = 'Envoyer ma candidature'
     }
   })
 </script>
-
 </body>
 </html>
