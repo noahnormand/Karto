@@ -901,15 +901,26 @@ async function desenchanterCarte() {
     })
     const data = await r.json()
     if (!r.ok) { toast(data.error || 'Erreur', 'rouge'); return }
-    if (collectionGlobale[streamerId]?.[setId]?.[carte.id] > 0)
-      collectionGlobale[streamerId][setId][carte.id]--
+
+    // Mettre à jour l'état local avec la valeur exacte renvoyée par le serveur
+    if (!collectionGlobale[streamerId]) collectionGlobale[streamerId] = {}
+    if (!collectionGlobale[streamerId][setId]) collectionGlobale[streamerId][setId] = {}
+    collectionGlobale[streamerId][setId][carte.id] = data.restant
     if (!essenceGlobale[streamerId]) essenceGlobale[streamerId] = {}
     essenceGlobale[streamerId][setId] = data.essence
+
     mettreAJourPoints()
-    toast(`+${data.gain || ''} essence !`, 'vert')
+    toast(`+${data.gain} essence !`, 'vert')
     afficherCollection()
-    // Rafraîchir la modal avec les nouvelles quantités
-    voirCarte(carte.id, streamerId, setId)
+
+    // Mettre à jour la modal directement sans la fermer
+    const qty = data.restant
+    const doublons = Math.max(0, qty - 1)
+    document.getElementById('detailQuantite').textContent = qty > 0 ? `×${qty} en collection` : 'Pas encore obtenue'
+    document.getElementById('detailDoublons').textContent = doublons
+    const desWrap = document.getElementById('detailDesenchanterWrap')
+    if (doublons < 1) desWrap.style.display = 'none'
+
   } catch (e) { toast('Erreur réseau', 'rouge') }
 }
 
