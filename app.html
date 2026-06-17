@@ -560,8 +560,14 @@ async function chargerUtilisateur(token) {
     basculerEtat(true)
     toast('Connecté en tant que ' + utilisateurConnecte.display_name)
     await chargerCollectionGlobale(utilisateurConnecte.id)
-    await autoSelectPremierSet()
-  } catch (err) { toast('Erreur de connexion Twitch', 'rouge') }
+  } catch (err) { console.error(err); toast('Erreur de connexion Twitch', 'rouge') }
+}
+
+async function autoSelectPremierSet() {
+  if (streamers.length && !setActif) {
+    const s = streamers[0]
+    if (s?.sets?.length) await selectionnerSet(s.id, s.sets[0].id)
+  }
 }
 
 async function chargerCollectionGlobale(viewerId) {
