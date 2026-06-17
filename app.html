@@ -134,6 +134,7 @@
     .toasts { position:fixed; bottom:20px; right:20px; z-index:999; display:flex; flex-direction:column; gap:6px; }
     .toast { background:#fff; border:1px solid #000; border-left:3px solid #000; padding:9px 14px; font-size:.75rem; font-weight:600; min-width:200px; letter-spacing:.02em; animation:slideIn .25s ease, disparaitre .3s ease 2.7s forwards; }
     .toast.rouge { border-left-color:#c00; }
+    .toast.vert  { border-left-color:#2a9d5c; }
     @keyframes slideIn { from { transform:translateX(30px); opacity:0; } }
     @keyframes disparaitre { to { transform:translateX(30px); opacity:0; } }
 
@@ -503,6 +504,14 @@
 
 <script>
 const TWITCH_CLIENT_ID = 'w7avkje8ceeuerq3wouq6dh39msysm'
+
+function toast(msg, type = '') {
+  const el = document.createElement('div')
+  el.className = 'toast' + (type ? ' ' + type : '')
+  el.textContent = msg
+  document.getElementById('toasts').appendChild(el)
+  setTimeout(() => el.remove(), 3000)
+}
 const TWITCH_REDIRECT  = location.hostname === 'localhost' ? 'https://localhost:3000' : 'https://karto-182e.onrender.com'
 let utilisateurConnecte = null
 
