@@ -168,6 +168,34 @@ const DEFAULT_ESSENCE_RARETE = {
 const DEFAULT_COUT_ESSENCE = { single: 100, pack: 250, display: 800 }
 
 
+// contact streamer
+
+app.post('/api/contact', async (req, res) => {
+  const { twitch, email, message } = req.body
+  if (!twitch || !email) return res.status(400).json({ error: 'champs manquants' })
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS contact_requests (
+        id         SERIAL PRIMARY KEY,
+        twitch     TEXT NOT NULL,
+        email      TEXT NOT NULL,
+        message    TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
+    await db.query(
+      'INSERT INTO contact_requests (twitch, email, message) VALUES ($1, $2, $3)',
+      [twitch, email, message || '']
+    )
+    console.log(`Nouvelle candidature streamer: ${twitch} (${email})`)
+    res.json({ ok: true })
+  } catch(e) {
+    console.error('Erreur contact:', e.message)
+    res.status(500).json({ error: 'erreur serveur' })
+  }
+})
+
+
 // api streamers
 
 app.get('/api/streamers', (req, res) => {

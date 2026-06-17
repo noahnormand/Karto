@@ -93,10 +93,41 @@ async function listEventSub(appToken) {
   return res.json()
 }
 
+async function deleteEventSub(appToken, id) {
+  const res = await fetch(`https://api.twitch.tv/helix/eventsub/subscriptions?id=${id}`, {
+    method: 'DELETE',
+    headers: { 'Client-Id': CLIENT_ID, 'Authorization': `Bearer ${appToken}` }
+  })
+  return res.status
+}
+
 ;(async () => {
   try {
     console.log('Obtention du token app...')
     const appToken = await getAppToken()
+
+    // node register_eventsub.js list
+    if (process.argv[2] === 'list') {
+      const list = await listEventSub(appToken)
+      const rewards = await listRewards()
+      const rewardNames = {}
+      rewards.data?.forEach(r => { rewardNames[r.id] = r.title })
+      list.data?.forEach(s => {
+        const rid = s.condition.reward_id
+        const rname = rid ? (rewardNames[rid] || rid) : 'any'
+        console.log(`  [${s.id}] broadcaster=${s.condition.broadcaster_user_id} reward="${rname}" [${s.status}]`)
+      })
+      return
+    }
+
+    // node register_eventsub.js delete <id>
+    if (process.argv[2] === 'delete') {
+      const id = process.argv[3]
+      if (!id) { console.error('Usage: node register_eventsub.js delete <id>'); process.exit(1) }
+      const status = await deleteEventSub(appToken, id)
+      console.log(status === 204 ? `Subscription ${id} supprimée.` : `Erreur: status ${status}`)
+      return
+    }
 
     // Vérifie les récompenses déjà créées par l'app
     console.log('Vérification des récompenses existantes...')

@@ -3,1496 +3,397 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Karto</title>
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <script>
-    tailwind.config = {
-      darkMode: "class",
-      theme: {
-        extend: {
-          colors: {
-            "surface-container-high":    "#e8e8e8",
-            "surface-container-low":     "#f3f3f3",
-            "surface-variant":           "#e2e2e2",
-            "outline-variant":           "#cfc4c5",
-            "on-surface":                "#1b1b1b",
-            "primary":                   "#000000",
-            "background":                "#f9f9f9",
-            "surface-bright":            "#f9f9f9",
-            "surface":                   "#f9f9f9",
-            "primary-container":         "#1b1b1b",
-            "error":                     "#ba1a1a",
-            "surface-container-highest": "#e2e2e2",
-            "inverse-surface":           "#303030",
-            "on-primary-container":      "#848484",
-            "on-surface-variant":        "#4c4546",
-            "outline":                   "#7e7576",
-            "on-background":             "#1b1b1b",
-            "secondary":                 "#7721e5",
-            "inverse-primary":           "#c6c6c6",
-            "surface-container":         "#eeeeee",
-            "on-primary":                "#ffffff",
-            "surface-container-lowest":  "#ffffff",
-            "secondary-container":       "#9146ff",
-            "tertiary":                  "#000000",
-            "surface-dim":               "#dadada",
-            "legendary":                 "#eab308"
-          },
-          borderRadius: {
-            DEFAULT:"0px",lg:"0px",xl:"0px",full:"0px",md:"0px",sm:"0px"
-          },
-          spacing: {
-            unit:"4px","border-thick":"2px",gutter:"24px",
-            "margin-mobile":"16px","border-thin":"1px","margin-desktop":"48px"
-          },
-          fontFamily: {
-            "h2":["Inter","sans-serif"],"mono-label":["monospace"],
-            "body-lg":["Inter","sans-serif"],"body-md":["Inter","sans-serif"],
-            "label-caps":["Inter","sans-serif"],"h1-mobile":["Inter","sans-serif"],
-            "display":["Inter","sans-serif"],"h1":["Inter","sans-serif"]
-          },
-          fontSize: {
-            "h2":        ["24px",{lineHeight:"1.3",letterSpacing:"-0.01em",fontWeight:"700"}],
-            "mono-label":["13px",{lineHeight:"1",fontWeight:"400"}],
-            "body-lg":   ["18px",{lineHeight:"1.6",fontWeight:"400"}],
-            "body-md":   ["16px",{lineHeight:"1.6",fontWeight:"400"}],
-            "label-caps":["12px",{lineHeight:"1",letterSpacing:"0.1em",fontWeight:"700"}],
-            "h1-mobile": ["32px",{lineHeight:"1.2",letterSpacing:"-0.02em",fontWeight:"800"}],
-            "display":   ["64px",{lineHeight:"1.1",letterSpacing:"-0.04em",fontWeight:"800"}],
-            "h1":        ["40px",{lineHeight:"1.2",letterSpacing:"-0.02em",fontWeight:"800"}]
-          }
-        }
-      }
-    }
-  </script>
+  <title>Karto - Cartes à collectionner pour streamers Twitch</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <style>
-    *, *::before, *::after { border-radius: 0 !important; }
-    body { font-family: 'Inter', system-ui, sans-serif; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    .carte { aspect-ratio:63/88; position:relative; overflow:hidden; cursor:pointer; transition:transform .15s; flex-shrink:0; }
-    .carte:hover { transform: translateY(-3px) scale(1.02); }
-    .carte[data-rarete="Commun"]     { box-shadow: 0 0 0 1px #bbb; }
-    .carte[data-rarete="Peu Commun"] { box-shadow: 0 0 0 1px #888; }
-    .carte[data-rarete="Rare"]       { box-shadow: 0 0 0 2px #444; }
-    .carte[data-rarete="Épique"]     { box-shadow: 0 0 0 2px #111; }
-    .carte[data-rarete="Légendaire"] { box-shadow: 0 0 0 3px #000; animation: legendBrille 3s ease-in-out infinite; }
-    @keyframes legendBrille {
-      0%,100% { box-shadow: 0 0 0 3px #000, 0 0 10px rgba(0,0,0,.15); }
-      50%     { box-shadow: 0 0 0 3px #000, 0 0 20px rgba(0,0,0,.30); }
+    :root {
+      --bg:        #0e0e10;
+      --surface:   #18181b;
+      --surface2:  #1f1f23;
+      --border:    #2a2a2e;
+      --text:      #efeff1;
+      --muted:     #848494;
+      --purple:    #9146ff;
+      --purple-dk: #7721e5;
+      --white:     #ffffff;
     }
-    .carte-art { position:absolute; inset:0; background:#eee; }
-    .carte-art img { width:100%; height:100%; object-fit:cover; }
-    .carte-art-fallback { position:absolute; inset:0; display:none; align-items:center; justify-content:center; font-size:2.5em; background:#f0f0f0; }
-    .carte-degrade { position:absolute; bottom:0; left:0; right:0; height:55%; background:linear-gradient(to top,rgba(0,0,0,.90) 0%,rgba(0,0,0,.55) 55%,transparent 100%); }
-    .carte-icone-haut { position:absolute; top:5%; left:50%; transform:translateX(-50%); width:11%; aspect-ratio:1; background:#fff; clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%); opacity:.7; }
-    .carte-stats-gauche { position:absolute; top:7%; left:6%; display:flex; flex-direction:column; gap:3px; }
-    .stat { width:20px; height:20px; display:flex; align-items:center; justify-content:center; font-size:.55rem; font-weight:900; background:rgba(0,0,0,.6); color:#fff; border:1px solid rgba(255,255,255,.3); }
-    .carte-stat-droite { position:absolute; top:7%; right:6%; }
-    .stat-spd { width:20px; height:20px; background:rgba(0,0,0,.6); clip-path:polygon(50% 0%,100% 38%,82% 100%,18% 100%,0% 38%); display:flex; align-items:center; justify-content:center; font-size:.5rem; font-weight:900; color:#fff; }
-    .carte-infos { position:absolute; bottom:0; left:0; right:0; padding:4% 7% 5%; }
-    .carte-type { display:inline-block; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); padding:1px 6px; font-size:.42rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.75); margin-bottom:2px; }
-    .carte-nom { font-size:.82rem; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#fff; }
-    .carte-desc { font-size:.4rem; color:rgba(255,255,255,.65); line-height:1.3; margin-top:2px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-    .carte-footer { display:flex; justify-content:space-between; margin-top:3px; opacity:.45; font-size:.35rem; font-style:italic; color:#fff; }
-    .coin { position:absolute; width:10px; height:10px; border-color:rgba(255,255,255,.4); border-style:solid; }
-    .coin-tl { top:3px; left:3px;   border-width:1.5px 0 0 1.5px; }
-    .coin-tr { top:3px; right:3px;  border-width:1.5px 1.5px 0 0; }
-    .coin-bl { bottom:3px; left:3px;  border-width:0 0 1.5px 1.5px; }
-    .coin-br { bottom:3px; right:3px; border-width:0 1.5px 1.5px 0; }
 
-    .carte-flip-wrap { width:190px; height:266px; perspective:1000px; cursor:pointer; }
-    .carte-flip-inner { width:100%; height:100%; position:relative; transform-style:preserve-3d; transition:transform .65s cubic-bezier(.4,0,.2,1); }
-    .carte-flip-inner.retournee { transform: rotateY(180deg); }
-    .carte-face, .carte-dos { position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; }
-    .carte-face { background:#e2e2e2; border:2px solid #ccc; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; animation:dosPulse 2s ease-in-out infinite; }
-    @keyframes dosPulse { 0%,100% { border-color:#ccc; } 50% { border-color:#555; } }
-    .dos-diamant { width:48px; height:48px; background:#000; clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%); }
-    .dos-texte { font-size:.62rem; color:#888; letter-spacing:.1em; text-transform:uppercase; }
-    .carte-dos { transform:rotateY(180deg); overflow:hidden; }
-    .carte-dos .carte { width:100%; height:100%; }
-
-    .mini-carte { width:32px; height:45px; overflow:hidden; animation:popIn .2s ease; flex-shrink:0; }
-    @keyframes popIn { from { transform:scale(0); opacity:0; } to { transform:scale(1); opacity:1; } }
-    .mini-carte .carte { width:100%; height:100%; }
-    .mini-carte .carte-icone-haut { width:8px; }
-    .mini-carte .carte-stats-gauche,.mini-carte .carte-stat-droite,.mini-carte .carte-desc,.mini-carte .carte-footer { display:none; }
-    .mini-carte .carte-nom { font-size:.35rem; }
-    .mini-carte .carte-type { font-size:.28rem; padding:0 3px; }
-    .mini-carte .stat { width:8px; height:8px; font-size:.25rem; }
-    .mini-carte .coin { width:5px; height:5px; }
-    .mini-carte .carte-infos { padding:2px 4px 3px; }
-
-    .dense-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); border-top:1px solid #000; border-left:1px solid #000; }
-    .dense-grid-item { border-right:1px solid #000; border-bottom:1px solid #000; }
-
-    .flash-rarete { position:fixed; inset:0; pointer-events:none; z-index:200; opacity:0; animation:flash .5s ease forwards; }
-    @keyframes flash { 0% { opacity:1; } 100% { opacity:0; } }
-    .particule { position:fixed; pointer-events:none; z-index:300; animation:particuleVol 1s ease-out forwards; }
-    @keyframes particuleVol { from { opacity:1; transform:scale(1); } to { opacity:0; transform:scale(0) translate(var(--dx),var(--dy)); } }
-
-    .toasts { position:fixed; bottom:20px; right:20px; z-index:999; display:flex; flex-direction:column; gap:6px; }
-    .toast { background:#fff; border:1px solid #000; border-left:3px solid #000; padding:9px 14px; font-size:.75rem; font-weight:600; min-width:200px; letter-spacing:.02em; animation:slideIn .25s ease, disparaitre .3s ease 2.7s forwards; }
-    .toast.rouge { border-left-color:#c00; }
-    @keyframes slideIn { from { transform:translateX(30px); opacity:0; } }
-    @keyframes disparaitre { to { transform:translateX(30px); opacity:0; } }
-
-    .sidebar-height { height:calc(100vh - 61px); }
-
-    /* Streamer row */
-    .streamer-row { display:flex; align-items:center; gap:8px; padding:10px 16px; font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; cursor:pointer; width:100%; border:none; background:transparent; transition:background .15s; }
-    .streamer-row:hover { background:#eeeeee; }
-    .streamer-row .chevron { margin-left:auto; transition:transform .2s; font-size:10px; opacity:.5; }
-    .streamer-row.ouvert .chevron { transform:rotate(90deg); }
-
-    /* Set row */
-    .set-row { display:flex; align-items:center; gap:8px; padding:7px 16px 7px 32px; font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; width:100%; border:none; background:transparent; transition:background .15s; border-left:2px solid transparent; }
-    .set-row:hover { background:#f0f0f0; }
-    .set-row.actif { background:#000; color:#fff; border-left-color:var(--set-color,#000); }
-
-    .info-revelee { text-align:center; min-height:44px; visibility:hidden; animation:apparition .3s ease; }
-    @keyframes apparition { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
-    .hide-scrollbar::-webkit-scrollbar { display:none; }
-    .hide-scrollbar { -ms-overflow-style:none; scrollbar-width:none; }
-    @keyframes float { 0% { transform:translateY(0); } 50% { transform:translateY(-8px); } 100% { transform:translateY(0); } }
-    .carte-float { animation:float 4s ease-in-out infinite; }
-
-    .sets-list { overflow:hidden; transition:max-height .25s ease; max-height:0; }
-    .sets-list.visible { max-height:500px; }
-
-    .mobile-drawer {
-      position: fixed; top: 61px; left: 0; bottom: 0; width: 280px; z-index: 45;
-      background: #f9f9f9; border-right: 1px solid #000;
-      transform: translateX(-100%); transition: transform .25s cubic-bezier(.4,0,.2,1);
-      overflow-y: auto; display: flex; flex-direction: column;
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      line-height: 1.6;
+      overflow-x: hidden;
     }
-    .mobile-drawer.ouvert { transform: translateX(0); }
-    .drawer-overlay {
-      position: fixed; inset: 0; top: 61px; background: rgba(0,0,0,.45);
-      z-index: 44; opacity: 0; pointer-events: none; transition: opacity .25s;
-    }
-    .drawer-overlay.visible { opacity: 1; pointer-events: auto; }
 
-    @media (max-width: 640px) {
-      .test-bar-btn { padding: 2px 8px; font-size: 10px; }
-      #badgePointsLabel { display: none !important; }
-      .modal-body { min-height: 340px !important; padding: 12px !important; }
-      .carte-flip-wrap { width: 150px !important; height: 210px !important; }
+    a { color: inherit; text-decoration: none; }
+
+    /* NAV */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px; height: 64px;
+      background: rgba(14,14,16,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo { font-size: 20px; font-weight: 800; letter-spacing: -0.03em; }
+    .nav-logo span { color: var(--purple); }
+    .nav-links { display: flex; gap: 32px; }
+    .nav-links a { font-size: 14px; font-weight: 500; color: var(--muted); transition: color .15s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--purple); color: #fff;
+      padding: 10px 20px; font-size: 14px; font-weight: 700;
+      cursor: pointer; border: none; transition: background .15s;
+    }
+    .nav-cta:hover { background: var(--purple-dk); }
+
+    /* HERO */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 120px 24px 80px;
+      position: relative;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(145,70,255,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(145,70,255,0.12); border: 1px solid rgba(145,70,255,0.3);
+      padding: 6px 14px; font-size: 12px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase; color: var(--purple);
+      margin-bottom: 32px;
+    }
+    .hero-badge::before {
+      content: ''; width: 6px; height: 6px;
+      background: var(--purple); border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+    }
+    .hero h1 {
+      font-size: clamp(48px, 8vw, 96px);
+      font-weight: 900; letter-spacing: -0.04em;
+      line-height: 1; margin-bottom: 24px;
+    }
+    .hero h1 em { font-style: normal; color: var(--purple); }
+    .hero p {
+      font-size: clamp(16px, 2vw, 20px);
+      color: var(--muted); max-width: 560px;
+      margin: 0 auto 48px;
+    }
+    .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+    .btn-primary {
+      background: var(--purple); color: #fff;
+      padding: 16px 32px; font-size: 16px; font-weight: 700;
+      cursor: pointer; border: none; transition: background .15s;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .btn-primary:hover { background: var(--purple-dk); }
+    .btn-secondary {
+      background: transparent; color: var(--text);
+      padding: 16px 32px; font-size: 16px; font-weight: 600;
+      cursor: pointer; border: 1px solid var(--border); transition: border-color .15s;
+    }
+    .btn-secondary:hover { border-color: var(--muted); }
+
+    /* CARDS PREVIEW */
+    .cards-preview {
+      display: flex; gap: 12px; justify-content: center; align-items: center;
+      margin-top: 80px; padding: 0 24px;
+      flex-wrap: nowrap; overflow: hidden;
+    }
+    .card-mock {
+      width: 100px; flex-shrink: 0;
+      aspect-ratio: 63/88;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      font-size: 24px;
+      transition: transform .2s;
+    }
+    .card-mock:hover { transform: translateY(-6px); }
+    .card-mock.rare    { border-color: #4a90d9; box-shadow: 0 0 16px rgba(74,144,217,0.2); }
+    .card-mock.epic    { border-color: #9b59b6; box-shadow: 0 0 16px rgba(155,89,182,0.2); }
+    .card-mock.legend  { border-color: #eab308; box-shadow: 0 0 20px rgba(234,179,8,0.25); animation: goldGlow 3s ease-in-out infinite; }
+    @keyframes goldGlow {
+      0%,100% { box-shadow: 0 0 20px rgba(234,179,8,0.25); }
+      50%      { box-shadow: 0 0 32px rgba(234,179,8,0.5); }
+    }
+    .card-mock:nth-child(1) { transform: rotate(-6deg) translateY(12px); }
+    .card-mock:nth-child(2) { transform: rotate(-3deg) translateY(4px); }
+    .card-mock:nth-child(3) { transform: rotate(0deg) translateY(0); z-index: 2; }
+    .card-mock:nth-child(4) { transform: rotate(3deg) translateY(4px); }
+    .card-mock:nth-child(5) { transform: rotate(6deg) translateY(12px); }
+    .card-mock:nth-child(1):hover { transform: rotate(-6deg) translateY(6px); }
+    .card-mock:nth-child(2):hover { transform: rotate(-3deg) translateY(-2px); }
+    .card-mock:nth-child(3):hover { transform: rotate(0deg) translateY(-6px); }
+    .card-mock:nth-child(4):hover { transform: rotate(3deg) translateY(-2px); }
+    .card-mock:nth-child(5):hover { transform: rotate(6deg) translateY(6px); }
+
+    /* SECTIONS */
+    section { padding: 96px 24px; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .section-label {
+      font-size: 12px; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--purple); margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: clamp(28px, 4vw, 48px);
+      font-weight: 800; letter-spacing: -0.03em;
+      line-height: 1.1; margin-bottom: 16px;
+    }
+    .section-sub {
+      font-size: 18px; color: var(--muted); max-width: 560px;
+    }
+
+    /* HOW IT WORKS */
+    .how { background: var(--surface); }
+    .steps {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 2px; margin-top: 64px;
+    }
+    .step {
+      background: var(--bg); padding: 40px 32px;
+      border-top: 2px solid var(--border);
+      position: relative;
+    }
+    .step.active { border-top-color: var(--purple); }
+    .step-num {
+      font-size: 48px; font-weight: 900; letter-spacing: -0.04em;
+      color: var(--border); line-height: 1; margin-bottom: 20px;
+    }
+    .step.active .step-num { color: var(--purple); }
+    .step h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .step p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+    /* FOR STREAMERS */
+    .for-streamers { background: var(--bg); }
+    .perks {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2px; margin-top: 64px;
+    }
+    .perk {
+      background: var(--surface); padding: 36px 32px;
+      border-left: 2px solid var(--border);
+    }
+    .perk-icon { font-size: 28px; margin-bottom: 16px; }
+    .perk h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+    .perk p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+    /* CONTACT */
+    .contact { background: var(--surface); }
+    .contact-box {
+      background: var(--bg); border: 1px solid var(--border);
+      padding: 56px 48px; max-width: 600px;
+    }
+    .form-group { margin-bottom: 20px; }
+    .form-group label {
+      display: block; font-size: 13px; font-weight: 600;
+      letter-spacing: 0.05em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 8px;
+    }
+    .form-group input,
+    .form-group textarea {
+      width: 100%; background: var(--surface2);
+      border: 1px solid var(--border); color: var(--text);
+      padding: 12px 16px; font-size: 15px; font-family: inherit;
+      outline: none; transition: border-color .15s;
+      resize: vertical;
+    }
+    .form-group input:focus,
+    .form-group textarea:focus { border-color: var(--purple); }
+    .form-group textarea { min-height: 100px; }
+    .form-success {
+      display: none; background: rgba(145,70,255,0.1);
+      border: 1px solid rgba(145,70,255,0.3);
+      padding: 16px 20px; font-size: 14px; color: var(--purple);
+      margin-top: 16px; font-weight: 600;
+    }
+
+    /* FOOTER */
+    footer {
+      background: var(--bg); border-top: 1px solid var(--border);
+      padding: 32px 48px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 16px;
+    }
+    .footer-logo { font-size: 16px; font-weight: 800; letter-spacing: -0.03em; }
+    .footer-logo span { color: var(--purple); }
+    footer p { font-size: 13px; color: var(--muted); }
+
+    /* RESPONSIVE */
+    @media (max-width: 768px) {
+      nav { padding: 0 20px; }
+      .nav-links { display: none; }
+      .contact-box { padding: 32px 24px; }
+      footer { padding: 24px 20px; }
     }
   </style>
 </head>
-<body class="bg-background text-primary min-h-screen flex flex-col antialiased">
+<body>
 
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">Kart<span>o</span></div>
+  <div class="nav-links">
+    <a href="#comment">Comment ça marche</a>
+    <a href="#streamers">Pour les streamers</a>
+    <a href="#contact">Contact</a>
+  </div>
+  <a href="#contact"><button class="nav-cta">Devenir partenaire</button></a>
+</nav>
 
-<!-- header -->
-<header class="w-full sticky top-0 z-50 border-b border-primary flex items-center justify-between px-4 md:px-margin-desktop"
-        style="height:61px;background:#f9f9f9">
-
-  <div class="flex items-center gap-3">
-    <!-- Burger (mobile uniquement, connecté) -->
-    <button id="burgerBtn" onclick="toggleDrawer()"
-            class="lg:hidden flex flex-col justify-center items-center w-9 h-9 border border-primary hover:bg-surface-variant"
-            style="display:none!important;gap:4px">
-      <span id="burger1" style="display:block;width:16px;height:2px;background:#000;transition:transform .2s,opacity .2s"></span>
-      <span id="burger2" style="display:block;width:16px;height:2px;background:#000;transition:opacity .2s"></span>
-      <span id="burger3" style="display:block;width:16px;height:2px;background:#000;transition:transform .2s,opacity .2s"></span>
-    </button>
-    <h1 class="font-h1 text-h1-mobile md:text-h1 font-black uppercase tracking-tighter cursor-pointer"
-        onclick="voirTouteCollection()">Karto</h1>
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">Bêta - Rejoins les premiers streamers</div>
+  <h1>Tes viewers méritent<br>de <em>collectionner</em>.</h1>
+  <p>Karto transforme tes points de chaîne en boosters de cartes à collectionner. Un univers unique pour chaque streamer.</p>
+  <div class="hero-actions">
+    <a href="#contact"><button class="btn-primary">Devenir streamer partenaire</button></a>
+    <a href="/app.html"><button class="btn-secondary">Voir la démo →</button></a>
   </div>
 
-  <div class="flex items-center gap-2 md:gap-6">
-    <div class="hidden items-center gap-2 border border-primary bg-surface-container-lowest px-2 md:px-3 py-unit" id="badgePointsWrap">
-      <div class="w-2 h-2 flex-shrink-0" id="badgePointsDot" style="background:#000"></div>
-      <span class="font-mono-label text-mono-label" id="badgePoints">5 000 pts</span>
-      <span class="font-mono-label text-mono-label text-outline hidden md:inline" id="badgePointsLabel"></span>
-    </div>
-    <span class="font-mono-label text-mono-label text-outline hidden" id="statutServeur"></span>
-    <div id="zoneConnexion">
-      <button onclick="connexionTwitch()"
-              class="bg-secondary-container text-on-primary font-label-caps text-label-caps uppercase px-3 md:px-gutter py-unit border border-primary hover:opacity-80 transition-opacity flex items-center gap-2">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/>
-        </svg>
-        <span class="hidden sm:inline">Se connecter avec Twitch</span>
-        <span class="sm:hidden">Twitch</span>
-      </button>
-    </div>
-  </div>
-</header>
-
-
-<!-- drawer mobile -->
-<div class="drawer-overlay" id="drawerOverlay" onclick="fermerDrawer()"></div>
-<div class="mobile-drawer hide-scrollbar" id="mobileDrawer">
-  <nav class="flex flex-col mt-4 flex-1">
-    <button onclick="voirTouteCollection();fermerDrawer()" id="btnTouteCollectionMobile"
-            class="streamer-row" style="font-size:11px">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-      </svg>
-      Toute ma collection
-    </button>
-    <div class="border-b border-primary mx-3 my-2 opacity-30"></div>
-    <div class="px-4 mb-1 font-mono-label text-outline uppercase" style="font-size:9px;letter-spacing:.12em">Collections</div>
-    <div id="mobileDrawerStreamers"></div>
-  </nav>
-  <div class="p-6 border-t border-primary">
-    <div class="font-mono-label text-mono-label text-outline">💨 Fueled by N2O</div>
-  </div>
-</div>
-
-<!-- hero -->
-<section id="heroSection"
-         class="w-full flex flex-col items-center justify-center py-32 px-margin-mobile border-b border-primary text-center bg-surface-bright relative overflow-hidden">
-  <div class="absolute inset-0 pointer-events-none opacity-5"
-       style="background-image:repeating-linear-gradient(45deg,#000 0,#000 1px,transparent 1px,transparent 12px)"></div>
-  <h2 class="font-display text-h1-mobile md:text-display font-black uppercase tracking-tighter mb-6 relative z-10">
-    Ouvre tes boosters.
-  </h2>
-  <p class="font-body-lg text-body-lg text-on-surface-variant max-w-xl mb-10 relative z-10">
-    Connecte-toi avec Twitch et explore les collections de tes streamers préférés.
-  </p>
-  <button onclick="connexionTwitch()"
-          class="bg-primary text-on-primary px-8 py-4 font-label-caps text-label-caps uppercase tracking-wider border border-primary hover:bg-inverse-surface transition-colors relative z-10 flex items-center gap-2">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/>
-    </svg>
-    Se connecter avec Twitch
-  </button>
-</section>
-
-<!-- Collections guest -->
-<section id="shopSectionGuest" class="w-full px-margin-mobile md:px-margin-desktop py-16 flex flex-col items-center">
-  <div class="w-full max-w-5xl">
-    <div class="flex items-center justify-between border-b border-primary pb-4 mb-10">
-      <h3 class="font-h2 text-h2 uppercase">Collections disponibles</h3>
-      <span class="font-mono-label text-mono-label text-outline uppercase">Connecte-toi pour obtenir des cartes</span>
-    </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-0 border-t border-l border-primary" id="collectionsGuest"></div>
+  <div class="cards-preview">
+    <div class="card-mock">🗡️</div>
+    <div class="card-mock rare">⚡</div>
+    <div class="card-mock legend">✨</div>
+    <div class="card-mock epic">🔮</div>
+    <div class="card-mock">🛡️</div>
   </div>
 </section>
 
-
-<!-- app connecté -->
-<div id="appLayout" class="flex flex-1 w-full" style="display:none!important">
-
-  <!-- SIDEBAR -->
-  <aside class="hidden lg:flex flex-col w-64 sticky left-0 bg-surface border-r border-primary sidebar-height overflow-y-auto hide-scrollbar"
-         style="top:61px">
-    <nav class="flex flex-col mt-gutter flex-1">
-
-      <!-- Toute ma collection -->
-      <button onclick="voirTouteCollection()" id="btnTouteCollection"
-              class="streamer-row" style="font-size:11px">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-          <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-        </svg>
-        Toute ma collection
-      </button>
-
-      <div class="border-b border-primary mx-3 my-2 opacity-30"></div>
-      <div class="px-4 mb-1 font-mono-label text-outline uppercase" style="font-size:9px;letter-spacing:.12em">Collections</div>
-
-      <!-- Streamers dynamiques -->
-      <div id="sidebarStreamers"></div>
-
-    </nav>
-    <div class="p-margin-desktop border-t border-primary">
-      <div class="font-mono-label text-mono-label text-outline mb-3 uppercase" id="statutServeurSidebar"></div>
-      <div class="font-mono-label text-mono-label text-outline">💨 Fueled by N2O</div>
-    </div>
-  </aside>
-
-  <!-- MAIN -->
-  <main class="flex-1 flex flex-col min-w-0">
-
-    <!-- barre test (Ctrl+Shift+D) -->
-
-    <!-- Invite à sélectionner un set (mobile, aucun set actif) -->
-    <div id="inviteSet" class="lg:hidden border-b border-primary px-4 py-6 flex items-center gap-4 bg-surface-container-low" style="display:none!important">
-      <button onclick="ouvrirDrawer()"
-              class="flex-1 border-2 border-primary bg-primary text-on-primary font-label-caps text-label-caps uppercase py-3 flex items-center justify-center gap-2">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
-        </svg>
-        Choisir une collection
-      </button>
-    </div>
-
-    <!-- Banner set actif -->
-    <div id="setActifBanner" class="border-b-2 border-primary px-margin-desktop py-8 relative overflow-hidden" style="display:none">
-      <div class="absolute inset-0 opacity-8" id="bannerBg"></div>
-      <div class="absolute inset-0 opacity-5" style="background-image:repeating-linear-gradient(45deg,#000 0,#000 1px,transparent 1px,transparent 12px)"></div>
-      <div class="relative z-10">
-        <div class="flex items-center gap-3 mb-2">
-          <div class="w-3 h-3" id="bannerDot"></div>
-          <span class="font-mono-label text-mono-label uppercase opacity-60" id="bannerStreamerNom"></span>
-          <span class="font-mono-label text-mono-label opacity-30">→</span>
-          <span class="font-mono-label text-mono-label uppercase opacity-60" id="bannerDate"></span>
-        </div>
-        <h2 class="font-display text-h1 font-black uppercase tracking-tighter" id="bannerNom"></h2>
-        <p class="font-body-md text-body-md opacity-60 mt-1 max-w-lg" id="bannerDesc"></p>
+<!-- HOW IT WORKS -->
+<section class="how" id="comment">
+  <div class="container">
+    <p class="section-label">Comment ça marche</p>
+    <h2 class="section-title">Simple pour le viewer,<br>zéro effort pour toi.</h2>
+    <p class="section-sub">Le viewer rachète une récompense de points de chaîne et reçoit un booster à ouvrir quand il veut.</p>
+    <div class="steps">
+      <div class="step active">
+        <div class="step-num">01</div>
+        <h3>Le viewer dépense ses points</h3>
+        <p>Il rachète ta récompense Twitch "Booster Karto". Les points partent, la magie commence.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h3>Un booster arrive en temps réel</h3>
+        <p>Karto reçoit la notification instantanément. Le booster apparaît dans l'inventaire du viewer sans aucun refresh.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h3>Il ouvre ses cartes</h3>
+        <p>Révélation carte par carte, avec animations. Communes, Rares, Légendaires - chaque ouverture est unique.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <h3>Il complète sa collection</h3>
+        <p>Toutes les cartes sont visibles, possédées ou non. La progression et la rareté poussent à revenir.</p>
       </div>
     </div>
-
-    <!-- Inventaire packs -->
-    <section id="shopSection" class="border-b border-primary" style="display:none">
-      <div class="px-4 md:px-margin-desktop py-4 border-b border-primary flex items-center justify-between">
-        <h2 class="font-h2 text-h2 uppercase">Mes packs</h2>
-        <div id="essenceBanner" class="flex items-center gap-2" style="display:none">
-          <span class="font-mono-label text-mono-label text-outline uppercase">Essence du set :</span>
-          <span class="font-display text-h3 font-black" data-essence-val>0</span>
-        </div>
-      </div>
-      <div class="grid grid-cols-3 gap-0" id="shopGrid"></div>
-    </section>
-
-    <!-- Collection -->
-    <section id="collectionSection" class="flex-1 flex flex-col bg-background">
-      <div class="px-margin-mobile md:px-margin-desktop py-4 border-b border-primary flex items-center justify-between gap-4">
-        <h2 class="font-h2 text-h2 uppercase" id="collectionTitre">Ma collection</h2>
-        <div class="flex items-center gap-3 flex-shrink-0">
-          <span class="font-mono-label text-mono-label text-outline" id="compteurCollection">0 carte</span>
-          <span class="font-mono-label text-mono-label text-outline" id="progressionCollection" style="display:none"></span>
-        </div>
-      </div>
-      <div class="flex border-b border-primary overflow-x-auto hide-scrollbar" id="filtresCollection">
-        <button class="px-gutter py-margin-mobile font-label-caps text-label-caps uppercase whitespace-nowrap bg-primary text-on-primary border-r border-primary" onclick="filtrer('tous',this)">Toutes</button>
-      </div>
-      <div class="dense-grid m-margin-mobile md:m-margin-desktop mb-0" id="grilleCartes"></div>
-    </section>
-
-  </main>
-</div>
-
-
-<!-- modal booster -->
-<div id="modalBooster"
-     class="fixed inset-0 bg-primary/80 z-40 flex items-center justify-center p-margin-mobile md:p-margin-desktop backdrop-blur-sm"
-     style="display:none!important; opacity:0; transition:opacity .2s">
-  <div class="bg-surface border-2 border-primary w-full max-w-4xl flex flex-col relative">
-
-    <div class="flex justify-between items-center p-gutter border-b border-primary">
-      <div>
-        <div class="font-mono-label text-mono-label text-outline uppercase mb-1" id="modalSetLabel"></div>
-        <div class="font-h2 text-h2 uppercase" id="modalTitre">Booster</div>
-      </div>
-      <div class="font-mono-label text-mono-label text-on-surface-variant">
-        <span id="numCarte">1</span> / <span id="totalCartes">10</span>
-      </div>
-    </div>
-
-    <div class="w-full h-px bg-surface-variant overflow-hidden">
-      <div class="h-full bg-primary transition-all duration-500" id="barreProgression" style="width:0%"></div>
-    </div>
-
-    <div class="modal-body flex-1 flex flex-col items-center justify-center p-margin-desktop min-h-[460px] relative">
-      <div class="relative group cursor-pointer carte-float mb-4" id="carteFlipWrap" onclick="revelerCarte()">
-        <div class="absolute -top-1 left-0 right-0 h-1 z-10" id="carteTopBar" style="background:#e2e2e2"></div>
-        <div class="carte-flip-wrap">
-          <div class="carte-flip-inner" id="carteFlipInner">
-            <div class="carte-face">
-              <div class="dos-diamant"></div>
-              <div class="dos-texte">Cliquer pour révéler</div>
-            </div>
-            <div class="carte-dos" id="carteDos"></div>
-          </div>
-        </div>
-      </div>
-      <div class="info-revelee mb-2" id="infoRevelee">
-        <div class="font-h2 text-h2 font-bold" id="infoNom"></div>
-        <div class="inline-block mt-1 px-3 py-1 border font-label-caps text-label-caps uppercase" id="infoRarete"></div>
-      </div>
-      <div id="grilleModal" style="display:none; grid-template-columns:repeat(5,1fr); gap:12px; overflow-y:auto; max-height:420px; width:100%; padding:4px"></div>
-    </div>
-
-    <div class="border-t border-primary bg-surface p-gutter flex flex-col md:flex-row items-center justify-between gap-gutter">
-      <div class="flex gap-2 overflow-x-auto hide-scrollbar pb-1 md:pb-0 w-full md:w-auto" id="cartesDeja"></div>
-      <div class="flex gap-3 w-full md:w-auto mt-2 md:mt-0 flex-shrink-0">
-        <button id="btnToutOuvrir" onclick="toutOuvrir()"
-                class="flex-1 md:flex-none px-gutter py-unit border border-primary bg-surface text-primary font-label-caps text-label-caps uppercase hover:bg-surface-variant">
-          Tout ouvrir
-        </button>
-        <button id="btnSuivante" onclick="carteSuivante()" style="display:none"
-                class="flex-1 md:flex-none px-gutter py-unit bg-primary text-on-primary font-label-caps text-label-caps uppercase hover:bg-inverse-surface flex items-center gap-2">
-          Suivante <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-        </button>
-        <button id="btnAjouter" onclick="ajouterACollection()" style="display:none"
-                class="flex-1 md:flex-none px-gutter py-unit bg-primary text-on-primary font-label-caps text-label-caps uppercase hover:bg-inverse-surface">
-          Ajouter à la collection
-        </button>
-      </div>
-    </div>
-
-    <button onclick="fermerModal()"
-            class="absolute w-10 h-10 bg-surface border border-primary flex items-center justify-center hover:bg-primary hover:text-on-primary font-bold"
-            style="top:-1px;right:-1px;z-index:100">✕</button>
   </div>
-</div>
+</section>
 
-
-<!-- modal détail carte -->
-<div id="modalDetail"
-     class="fixed inset-0 bg-primary/80 z-40 flex items-center justify-center p-margin-mobile md:p-margin-desktop backdrop-blur-sm"
-     style="display:none!important; opacity:0; transition:opacity .2s"
-     onclick="fermerDetail(event)">
-  <div class="bg-surface border-2 border-primary w-full max-w-2xl flex flex-col md:flex-row relative"
-       onclick="event.stopPropagation()">
-    <div class="md:w-64 flex-shrink-0 border-b md:border-b-0 md:border-r border-primary flex items-center justify-center p-gutter bg-surface-container-low">
-      <div style="width:210px;height:294px" id="detailCarteWrap"></div>
-    </div>
-    <div class="flex-1 flex flex-col">
-      <div class="p-gutter border-b border-primary" style="padding-right:3.5rem">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <div class="font-mono-label text-mono-label text-outline uppercase mb-1" id="detailType"></div>
-            <div class="font-h2 text-h2 font-bold" id="detailNom"></div>
-          </div>
-          <div class="flex-shrink-0 border border-primary px-3 py-1 font-label-caps text-label-caps uppercase" id="detailRarete"></div>
-        </div>
+<!-- FOR STREAMERS -->
+<section class="for-streamers" id="streamers">
+  <div class="container">
+    <p class="section-label">Pour les streamers</p>
+    <h2 class="section-title">Un univers à ton image.</h2>
+    <p class="section-sub">Tes cartes, tes personnages, tes raretés. On construit le set ensemble.</p>
+    <div class="perks">
+      <div class="perk">
+        <div class="perk-icon">🎨</div>
+        <h3>Tes cartes, ton univers</h3>
+        <p>On crée un set sur mesure avec tes personnages, ton lore, tes couleurs. Chaque streamer a sa propre identité.</p>
       </div>
-      <div class="border-b border-primary flex" id="detailStatsWrap">
-        <div class="flex-1 p-4 border-r border-primary text-center">
-          <div class="font-mono-label text-mono-label text-outline uppercase mb-1">PV</div>
-          <div class="font-h2 text-h2 font-bold" id="detailPv"></div>
-        </div>
-        <div class="flex-1 p-4 border-r border-primary text-center">
-          <div class="font-mono-label text-mono-label text-outline uppercase mb-1">ATK</div>
-          <div class="font-h2 text-h2 font-bold" id="detailAtk"></div>
-        </div>
-        <div class="flex-1 p-4 border-r border-primary text-center">
-          <div class="font-mono-label text-mono-label text-outline uppercase mb-1">DEF</div>
-          <div class="font-h2 text-h2 font-bold" id="detailDef"></div>
-        </div>
-        <div class="flex-1 p-4 text-center">
-          <div class="font-mono-label text-mono-label text-outline uppercase mb-1">COÛT</div>
-          <div class="font-h2 text-h2 font-bold" id="detailCout"></div>
-        </div>
+      <div class="perk">
+        <div class="perk-icon">⚡</div>
+        <h3>Intégration en quelques minutes</h3>
+        <p>Un script, une autorisation Twitch, c'est en ligne. Pas de code à écrire de ton côté.</p>
       </div>
-      <div class="p-gutter flex-1">
-        <div class="font-mono-label text-mono-label text-outline uppercase mb-2">Description</div>
-        <div class="font-body-md text-body-md text-on-surface leading-relaxed" id="detailDesc"></div>
+      <div class="perk">
+        <div class="perk-icon">📈</div>
+        <h3>Tes viewers restent plus longtemps</h3>
+        <p>Collectionner pousse à revenir. Les viewers accumulent des points et cherchent les cartes qui manquent.</p>
       </div>
-      <div class="border-t border-primary p-gutter flex items-center justify-between">
-        <div class="font-mono-label text-mono-label text-outline uppercase">
-          ID : <span class="text-primary" id="detailId"></span>
-        </div>
-        <div class="font-label-caps text-label-caps uppercase border border-primary px-3 py-1 bg-surface-container" id="detailQuantite"></div>
-      </div>
-      <div id="detailDesenchanterWrap" class="border-t border-primary p-gutter flex flex-col gap-2" style="display:none">
-        <div class="flex items-center justify-between">
-          <span class="font-mono-label text-mono-label text-outline uppercase">Doublons : <span id="detailDoublons" class="text-primary"></span></span>
-          <span class="font-mono-label text-mono-label text-outline uppercase">+<span id="detailGainEssence" class="text-primary"></span> essence</span>
-        </div>
-        <button id="btnDesenchanter" onclick="desenchanterCarte()"
-                class="w-full bg-primary text-on-primary font-label-caps text-label-caps uppercase py-2 border border-primary hover:bg-inverse-surface transition-colors">
-          Désenchanter 1 doublon
-        </button>
+      <div class="perk">
+        <div class="perk-icon">🎯</div>
+        <h3>Tu choisis les règles</h3>
+        <p>Nombre de cartes par booster, raretés, coût en points — tout est configurable selon ta communauté.</p>
       </div>
     </div>
-    <button onclick="fermerDetail()"
-            class="absolute -top-px -right-px w-10 h-10 bg-surface border border-primary flex items-center justify-center hover:bg-primary hover:text-on-primary z-50 font-bold">✕</button>
   </div>
-</div>
+</section>
 
-<div class="toasts" id="toasts"></div>
+<!-- CONTACT -->
+<section class="contact" id="contact">
+  <div class="container">
+    <p class="section-label">Rejoindre la bêta</p>
+    <h2 class="section-title">Tu veux être partenaire ?</h2>
+    <p class="section-sub" style="margin-bottom: 48px;">Laisse-nous tes infos, on revient vers toi rapidement.</p>
+    <div class="contact-box">
+      <form id="contactForm">
+        <div class="form-group">
+          <label>Login Twitch</label>
+          <input type="text" name="twitch" placeholder="ton_login" required />
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" name="email" placeholder="toi@exemple.com" required />
+        </div>
+        <div class="form-group">
+          <label>Ta communauté en quelques mots</label>
+          <textarea name="message" placeholder="Quel est ton univers, ta thématique, combien de viewers tu as en moyenne..."></textarea>
+        </div>
+        <button type="submit" class="btn-primary" style="width:100%; justify-content:center;">
+          Envoyer ma candidature
+        </button>
+        <div class="form-success" id="formSuccess">
+          Candidature reçue ! On te répond dans les 48h.
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
 
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">Kart<span>o</span></div>
+  <p>Projet en bêta - 2025</p>
+</footer>
 
 <script>
-const TWITCH_CLIENT_ID = 'w7avkje8ceeuerq3wouq6dh39msysm'
-const TWITCH_REDIRECT  = location.hostname === 'localhost' ? 'https://localhost:3000' : 'https://karto-182e.onrender.com'
-let utilisateurConnecte = null
-
-function connexionTwitch() {
-  const url = new URL('https://id.twitch.tv/oauth2/authorize')
-  url.searchParams.set('client_id',     TWITCH_CLIENT_ID)
-  url.searchParams.set('redirect_uri',  TWITCH_REDIRECT)
-  url.searchParams.set('response_type', 'token')
-  url.searchParams.set('scope',         'user:read:email')
-  window.location.href = url.toString()
-}
-
-function deconnexion() {
-  localStorage.removeItem('twitch_token')
-  localStorage.removeItem('twitch_user')
-  utilisateurConnecte = null
-  basculerEtat(false)
-  toast('Déconnecté')
-}
-
-async function verifierConnexion() {
-  const hash  = new URLSearchParams(window.location.hash.slice(1))
-  const token = hash.get('access_token')
-  if (token) {
-    history.replaceState(null, '', window.location.pathname)
-    localStorage.setItem('twitch_token', token)
-    await chargerUtilisateur(token)
-    return
-  }
-  const tok  = localStorage.getItem('twitch_token')
-  const user = localStorage.getItem('twitch_user')
-  if (tok && user) {
-    utilisateurConnecte = JSON.parse(user)
-    basculerEtat(true)
-    await chargerCollectionGlobale(utilisateurConnecte.id)
-  }
-}
-
-async function chargerUtilisateur(token) {
-  try {
-    const data = await fetch('https://api.twitch.tv/helix/users', {
-      headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': TWITCH_CLIENT_ID }
-    }).then(r => r.json())
-    utilisateurConnecte = data.data[0]
-    localStorage.setItem('twitch_user', JSON.stringify(utilisateurConnecte))
-    basculerEtat(true)
-    toast('Connecté en tant que ' + utilisateurConnecte.display_name)
-    await chargerCollectionGlobale(utilisateurConnecte.id)
-    await autoSelectPremierSet()
-  } catch (err) { toast('Erreur de connexion Twitch', 'rouge') }
-}
-
-async function chargerCollectionGlobale(viewerId) {
-  try {
-    const [col, packs, ess] = await Promise.all([
-      fetch(`/api/collection/${viewerId}`).then(r => r.json()),
-      fetch(`/api/packs/${viewerId}`).then(r => r.json()),
-      fetch(`/api/essence/${viewerId}`).then(r => r.json())
-    ])
-    collectionGlobale = col
-    packsInventaire   = packs
-    essenceGlobale    = ess
-    afficherCollection()
-    if (setActif) afficherBoutique(setData[cleSet(setActif.streamerId, setActif.setId)]?.config, null)
-  } catch (e) { console.error(e) }
-}
-
-function essenceActuelle(streamerId, setId) {
-  return essenceGlobale[streamerId]?.[setId] || 0
-}
-
-function essenceParRarete(setId, streamerId, rarete) {
-  const sData = setData[cleSet(streamerId, setId)]
-  return sData?.config?.raretes?.[rarete]?.essence || 0
-}
-
-let drawerOuvert = false
-
-function toggleDrawer() {
-  drawerOuvert ? fermerDrawer() : ouvrirDrawer()
-}
-
-function ouvrirDrawer() {
-  drawerOuvert = true
-  document.getElementById('mobileDrawer').classList.add('ouvert')
-  document.getElementById('drawerOverlay').classList.add('visible')
-  const b1 = document.getElementById('burger1')
-  const b2 = document.getElementById('burger2')
-  const b3 = document.getElementById('burger3')
-  if (b1) { b1.style.transform = 'translateY(6px) rotate(45deg)'; b2.style.opacity='0'; b3.style.transform = 'translateY(-6px) rotate(-45deg)' }
-}
-
-function fermerDrawer() {
-  drawerOuvert = false
-  document.getElementById('mobileDrawer').classList.remove('ouvert')
-  document.getElementById('drawerOverlay').classList.remove('visible')
-  const b1 = document.getElementById('burger1')
-  const b2 = document.getElementById('burger2')
-  const b3 = document.getElementById('burger3')
-  if (b1) { b1.style.transform = ''; b2.style.opacity='1'; b3.style.transform = '' }
-}
-
-function basculerEtat(connecte) {
-  document.getElementById('heroSection').style.display      = connecte ? 'none' : ''
-  document.getElementById('shopSectionGuest').style.display = connecte ? 'none' : ''
-  document.getElementById('appLayout').style.setProperty('display', connecte ? 'flex' : 'none', 'important')
-  const burger = document.getElementById('burgerBtn')
-  if (burger) burger.style.setProperty('display', connecte ? 'flex' : 'none', 'important')
-
-  const zone = document.getElementById('zoneConnexion')
-  if (connecte && utilisateurConnecte) {
-    zone.innerHTML = `
-      <div class="flex items-center gap-unit border border-primary p-unit bg-surface-container-lowest">
-        <img src="${utilisateurConnecte.profile_image_url}" class="w-8 h-8 border border-primary object-cover"/>
-        <span class="font-label-caps text-label-caps uppercase px-unit">${utilisateurConnecte.display_name}</span>
-        <button onclick="deconnexion()" class="font-mono-label text-mono-label border border-outline-variant px-2 py-px text-outline hover:bg-surface-variant ml-1">Déco</button>
-      </div>`
-  } else {
-    zone.innerHTML = `
-      <button onclick="connexionTwitch()" class="bg-secondary-container text-on-primary font-label-caps text-label-caps uppercase px-gutter py-unit border border-primary hover:opacity-80 flex items-center gap-2">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
-        Se connecter avec Twitch
-      </button>`
-  }
-  if (connecte) mettreAJourSidebar()
-}
-
-
-let streamers         = []    // [{ id, nom, couleur, sets:[...] }]
-let setActif          = null  // { streamerId, setId } ou null
-let streamerActif     = null  // streamerId ou null
-let setData           = {}    // { "kc/saison1": { config, cards } }
-let collectionGlobale = {}    // { streamerId: { setId: { carteId: qty } } }
-let packsInventaire   = {}    // { streamerId: { setId: { boosterType: qty } } }
-let essenceGlobale    = {}    // { streamerId: { setId: nb } }
-let filtreCourant     = 'tous'
-
-// Booster en cours
-let cartesEnCours     = []
-let indexCourant      = 0
-let carteRetournee    = false
-let setBooster        = null  // { streamerId, setId } pour le booster ouvert
-
-
-async function chargerStreamers() {
-  try {
-    streamers = await fetch('/api/streamers').then(r => r.json())
-    afficherCollectionsGuest()
-    mettreAJourSidebar()
-  } catch (e) { streamers = [] }
-}
-
-function cleSet(streamerId, setId) { return `${streamerId}/${setId}` }
-
-async function chargerSetData(streamerId, setId) {
-  const cle = cleSet(streamerId, setId)
-  if (setData[cle]) return setData[cle]
-  const [config, cards] = await Promise.all([
-    fetch(`/api/streamer/${streamerId}/set/${setId}/config`).then(r => r.json()),
-    fetch(`/api/streamer/${streamerId}/set/${setId}/cards`).then(r => r.json())
-  ])
-  setData[cle] = { config, cards }
-  return setData[cle]
-}
-
-
-function construireStreamerItems(suffix, onSetClick, onStreamerClick) {
-  return streamers.map(s => {
-    const estOuvert   = setActif?.streamerId === s.id || streamerActif === s.id
-    const estStreamerActif = streamerActif === s.id && !setActif
-    return `
-      <div>
-        <button class="streamer-row${estOuvert ? ' ouvert' : ''}" id="streamer-row${suffix}-${s.id}">
-          <div style="width:10px;height:10px;background:${s.couleur||'#000'};flex-shrink:0;flex-shrink:0" onclick="${onStreamerClick}('${s.id}')"></div>
-          <span style="flex:1;text-align:left;${estStreamerActif?`font-weight:900`:''}" onclick="${onStreamerClick}('${s.id}')">${s.nom}</span>
-          <span class="chevron" onclick="toggleStreamer('${s.id}','${suffix}');event.stopPropagation()">▶</span>
-        </button>
-        <div class="sets-list${estOuvert ? ' visible' : ''}" id="sets${suffix}-${s.id}">
-          ${(s.sets || []).map(set => `
-            <button class="set-row${setActif?.streamerId===s.id && setActif?.setId===set.id ? ' actif' : ''}"
-                    style="--set-color:${set.couleur||s.couleur||'#000'}"
-                    onclick="${onSetClick}('${s.id}','${set.id}')">
-              <div style="width:6px;height:6px;background:${set.couleur||s.couleur||'#000'};flex-shrink:0"></div>
-              ${set.nom}
-            </button>`).join('')}
-        </div>
-      </div>`
-  }).join('')
-}
-
-function mettreAJourSidebar() {
-  const desktop = document.getElementById('sidebarStreamers')
-  const mobile  = document.getElementById('mobileDrawerStreamers')
-
-  if (desktop) desktop.innerHTML = construireStreamerItems('', 'selectionnerSet', 'selectionnerStreamer')
-  if (mobile)  mobile.innerHTML  = construireStreamerItems('-mob', 'selectionnerSetMobile', 'selectionnerStreamerMobile')
-
-  const btnTout = document.getElementById('btnTouteCollection')
-  if (btnTout) btnTout.classList.toggle('bg-surface-variant', setActif === null && streamerActif === null)
-}
-
-function selectionnerSetMobile(streamerId, setId) {
-  fermerDrawer()
-  selectionnerSet(streamerId, setId)
-}
-
-function selectionnerStreamer(streamerId) {
-  setActif      = null
-  streamerActif = streamerId
-  const streamer = streamers.find(s => s.id === streamerId)
-  document.getElementById('setActifBanner').style.display = 'none'
-  document.getElementById('shopSection').style.display    = 'none'
-  document.getElementById('collectionTitre').textContent  = streamer?.nom || streamerId
-  document.getElementById('progressionCollection').style.display = 'none'
-  filtreCourant = 'tous'
-  genererFiltres()
-  mettreAJourSidebar()
-  afficherCollectionStreamer(streamerId)
-}
-
-function selectionnerStreamerMobile(streamerId) {
-  fermerDrawer()
-  selectionnerStreamer(streamerId)
-}
-
-function afficherCollectionStreamer(streamerId) {
-  const ordre = ['Légendaire','Épique','Rare','Peu Commun','Commun']
-  const grille   = document.getElementById('grilleCartes')
-  const compteur = document.getElementById('compteurCollection')
-
-  let entrees = []
-  const sets = collectionGlobale[streamerId] || {}
-  for (const [setId, col] of Object.entries(sets)) {
-    const sData = setData[cleSet(streamerId, setId)]
-    const cards = sData?.cards || []
-    for (const [id, qty] of Object.entries(col)) {
-      const carte = cards.find(c => c.id === id)
-      if (carte) entrees.push({ carte, qty, streamerId, setId })
-    }
-  }
-
-  if (filtreCourant !== 'tous') {
-    entrees = entrees.filter(({ carte }) => carte.rarete === filtreCourant || carte.type === filtreCourant)
-  }
-  entrees.sort((a,b) => ordre.indexOf(a.carte.rarete) - ordre.indexOf(b.carte.rarete))
-
-  const total = entrees.reduce((acc,e) => acc + e.qty, 0)
-  compteur.textContent = total + ' carte' + (total > 1 ? 's' : '')
-
-  if (!entrees.length) {
-    grille.innerHTML = `<div class="dense-grid-item col-span-full p-12 text-center font-mono-label text-mono-label text-outline uppercase">Aucune carte ici pour l'instant.</div>`
-    return
-  }
-
-  grille.innerHTML = entrees.map(({ carte, qty, streamerId, setId }) => {
-    const sData    = setData[cleSet(streamerId, setId)]
-    const setNom   = sData?.config?.nom || setId
-    const setColor = sData?.config?.couleur || '#000'
-    return `<div class="dense-grid-item aspect-square relative cursor-pointer group hover:bg-surface-variant transition-colors"
-                 onclick="voirCarte('${carte.id}','${streamerId}','${setId}')">
-      ${construireCarte(carte, streamerId, setId)}
-      ${qty > 1 ? `<div class="absolute top-1 right-1 border border-primary bg-surface font-mono-label text-[10px] px-1 z-10">×${qty}</div>` : ''}
-      <div class="absolute bottom-0 left-0 right-0 px-1 py-px text-center" style="font-size:7px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:${setColor};color:#fff;opacity:.85">${setNom}</div>
-    </div>`
-  }).join('')
-}
-
-function toggleStreamer(streamerId, suffix) {
-  const s    = suffix || ''
-  const row  = document.getElementById(`streamer-row${s}-${streamerId}`)
-  const sets = document.getElementById(`sets${s}-${streamerId}`)
-  if (!sets) return
-  const estOuvert = sets.classList.contains('visible')
-  sets.classList.toggle('visible', !estOuvert)
-  if (row) row.classList.toggle('ouvert', !estOuvert)
-}
-
-
-
-
-async function selectionnerSet(streamerId, setId) {
-  setActif      = { streamerId, setId }
-  streamerActif = null
-  const data     = await chargerSetData(streamerId, setId)
-  const streamer = streamers.find(s => s.id === streamerId)
-  const set      = streamer?.sets?.find(s => s.id === setId)
-
-  const invite = document.getElementById('inviteSet')
-  if (invite) invite.style.setProperty('display', 'none', 'important')
-
-  mettreAJourSidebar()
-  mettreAJourPoints()
-
-  // Banner
-  const banner = document.getElementById('setActifBanner')
-  banner.style.display = ''
-  banner.style.borderColor = data.config.couleur || streamer?.couleur || '#000'
-  document.getElementById('bannerBg').style.background    = data.config.couleur || streamer?.couleur || '#000'
-  document.getElementById('bannerDot').style.background   = data.config.couleur || streamer?.couleur || '#000'
-  document.getElementById('bannerStreamerNom').textContent = streamer?.nom || streamerId
-  document.getElementById('bannerNom').textContent        = data.config.nom
-  document.getElementById('bannerDesc').textContent       = data.config.description || ''
-  document.getElementById('bannerDate').textContent       = data.config.date || ''
-
-  // Shop
-  document.getElementById('shopSection').style.display = ''
-  afficherBoutique(data.config, streamer)
-
-  // Collection
-  document.getElementById('collectionTitre').textContent = data.config.nom
-  filtreCourant = 'tous'
-  genererFiltres()
-  afficherCollection()
-}
-
-async function voirTouteCollection() {
-  setActif = null
-  mettreAJourSidebar()
-  document.getElementById('setActifBanner').style.display = 'none'
-  document.getElementById('shopSection').style.display    = 'none'
-  document.getElementById('collectionTitre').textContent  = 'Toute ma collection'
-  document.getElementById('badgePointsWrap').style.display = 'none'
-  const invite = document.getElementById('inviteSet')
-  if (invite) invite.style.setProperty('display', utilisateurConnecte ? 'flex' : 'none', 'important')
-  afficherCollection()
-}
-
-
-function afficherBoutique(config, streamer) {
-  const grid = document.getElementById('shopGrid')
-  grid.innerHTML = ''
-  const { streamerId, setId } = setActif
-  const inv     = packsInventaire[streamerId]?.[setId] || {}
-  const essence = essenceActuelle(streamerId, setId)
-
-  Object.entries(config.boosters).forEach(([id, booster], i, arr) => {
-    const isLast = i === arr.length - 1
-    const qty    = inv[id] || 0
-    const cE     = booster.cout_essence || 0
-    const peutRacheter = cE > 0 && essence >= cE
-    const div    = document.createElement('div')
-    div.id        = `pack-card-${streamerId}-${setId}-${id}`
-    div.className = `px-4 md:px-6 py-4 md:py-6 ${isLast ? '' : 'border-r border-primary'} flex flex-col items-center justify-between`
-    div.innerHTML = `
-      <div class="w-full aspect-[3/4] border border-primary mb-3 relative overflow-hidden flex items-center justify-center"
-           style="background:${config.couleur||'#eee'}18;${qty===0?'opacity:.35':''}">
-        <div class="absolute inset-0" style="background:${config.couleur||'#000'};opacity:.07"></div>
-        <span class="font-display text-h1 text-primary opacity-10 font-black">${booster.nom.charAt(0)}</span>
-      </div>
-      <div class="w-full text-center flex flex-col gap-1 mb-3">
-        <h3 class="font-label-caps text-label-caps uppercase">${booster.nom}</h3>
-        <span class="font-mono-label text-mono-label text-on-surface-variant text-xs">${booster.nb_cartes} cartes${booster.garantie ? ' · '+booster.garantie+' garantie' : ''}</span>
-      </div>
-      <div class="w-full border-t border-primary pt-3 flex flex-col items-center gap-2">
-        <div class="flex items-center gap-2">
-          <span class="font-display text-h2 font-black" id="qty-${streamerId}-${setId}-${id}">${qty}</span>
-          <span class="font-mono-label text-mono-label text-outline uppercase">disponible${qty>1?'s':''}</span>
-        </div>
-        <button id="btn-${streamerId}-${setId}-${id}" onclick="ouvrirPackInventaire('${id}')"
-                ${qty === 0 ? 'disabled' : ''}
-                class="w-full bg-primary text-on-primary font-label-caps text-label-caps uppercase py-2 border border-primary hover:bg-inverse-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-          Ouvrir
-        </button>
-        ${cE > 0 ? `
-        <button onclick="racheterBooster('${id}')"
-                ${peutRacheter ? '' : 'disabled'}
-                class="w-full bg-surface text-primary font-mono-label text-mono-label uppercase py-2 border border-primary hover:bg-surface-variant disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-          Racheter · ${cE} ess
-        </button>` : ''}
-      </div>`
-    grid.appendChild(div)
-  })
-
-  // bandeau essence du set
-  const banner = document.getElementById('essenceBanner')
-  if (banner) {
-    banner.style.display = ''
-    banner.querySelector('[data-essence-val]').textContent = essence
-  }
-}
-
-async function racheterBooster(boosterType) {
-  if (!utilisateurConnecte || !setActif) return
-  const { streamerId, setId } = setActif
-  try {
-    const r = await fetch(`/api/streamer/${streamerId}/set/${setId}/racheter/${utilisateurConnecte.id}`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ boosterType })
-    })
-    const data = await r.json()
-    if (!r.ok) { toast(data.error || 'Essence insuffisante', 'rouge'); return }
-
-    if (!essenceGlobale[streamerId]) essenceGlobale[streamerId] = {}
-    essenceGlobale[streamerId][setId] = data.essence
-
-    if (!packsInventaire[streamerId]) packsInventaire[streamerId] = {}
-    if (!packsInventaire[streamerId][setId]) packsInventaire[streamerId][setId] = {}
-    packsInventaire[streamerId][setId][boosterType] = (packsInventaire[streamerId][setId][boosterType] || 0) + 1
-
-    toast('Booster racheté !', 'vert')
-    afficherBoutique(setData[cleSet(streamerId, setId)]?.config, null)
-  } catch (e) { toast('Erreur réseau', 'rouge') }
-}
-
-function afficherCollectionsGuest() {
-  const grid = document.getElementById('collectionsGuest')
-  grid.innerHTML = ''
-  streamers.forEach(s => {
-    const div = document.createElement('div')
-    div.className = 'border-r border-b border-primary p-gutter flex flex-col group cursor-pointer hover:bg-surface-container transition-colors'
-    div.onclick   = connexionTwitch
-    const nbSets   = s.sets?.length || 0
-    const firstSet = s.sets?.[0]
-
-    const fan = firstSet ? `
-      <div style="position:relative;width:200px;height:160px;flex-shrink:0">
-        <img src="streamers/${s.id}/sets/${firstSet.id}/img/c01.png"
-             style="position:absolute;width:90px;height:126px;top:18px;left:0;transform:rotate(-10deg);box-shadow:4px 4px 12px rgba(0,0,0,.5);object-fit:cover;border-radius:4px"
-             onerror="this.style.display='none'">
-        <img src="streamers/${s.id}/sets/${firstSet.id}/img/c05.png"
-             style="position:absolute;width:90px;height:126px;top:4px;left:55px;transform:rotate(-1deg);box-shadow:4px 4px 12px rgba(0,0,0,.5);object-fit:cover;border-radius:4px;z-index:1"
-             onerror="this.style.display='none'">
-        <img src="streamers/${s.id}/sets/${firstSet.id}/img/c09.png"
-             style="position:absolute;width:90px;height:126px;top:18px;left:110px;transform:rotate(9deg);box-shadow:4px 4px 12px rgba(0,0,0,.5);object-fit:cover;border-radius:4px"
-             onerror="this.style.display='none'">
-      </div>` : `<span class="font-display text-h1 font-black opacity-15 uppercase tracking-tighter">${s.nom.charAt(0)}</span>`
-
-    div.innerHTML = `
-      <div class="w-full border border-primary mb-4 relative overflow-hidden flex items-center justify-center py-10" style="background:${s.couleur||'#111'}12;min-height:200px">
-        <div class="absolute inset-0" style="background:${s.couleur||'#000'};opacity:.05"></div>
-        ${fan}
-      </div>
-      <div class="flex flex-col gap-unit mb-4">
-        <div class="flex items-center gap-2">
-          <div class="w-2 h-2" style="background:${s.couleur||'#000'}"></div>
-          <h3 class="font-label-caps text-label-caps uppercase">${s.nom}</h3>
-        </div>
-        <span class="font-mono-label text-mono-label text-on-surface-variant">${nbSets} set${nbSets>1?'s':''} disponible${nbSets>1?'s':''}</span>
-        <span class="font-mono-label text-mono-label text-outline">${s.description||''}</span>
-      </div>
-      <div class="mt-auto border-t border-primary pt-4">
-        <button class="w-full bg-primary text-on-primary font-label-caps text-label-caps uppercase px-4 py-2 border border-primary hover:bg-inverse-surface transition-colors">
-          Voir la collection
-        </button>
-      </div>`
-    grid.appendChild(div)
-  })
-}
-
-async function recevoirPack(streamerId, setId, boosterType, viewerId) {
-  if (!packsInventaire[streamerId]) packsInventaire[streamerId] = {}
-  if (!packsInventaire[streamerId][setId]) packsInventaire[streamerId][setId] = {}
-  packsInventaire[streamerId][setId][boosterType] = (packsInventaire[streamerId][setId][boosterType] || 0) + 1
-  if (viewerId || utilisateurConnecte?.id) {
-    await fetch(`/api/packs/${viewerId || utilisateurConnecte.id}/add`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ streamerId, setId, boosterType })
-    }).catch(() => {})
-  }
-  if (setActif?.streamerId === streamerId && setActif?.setId === setId) {
-    const config = setData[cleSet(streamerId, setId)]?.config
-    if (config) afficherBoutique(config, null)
-  }
-}
-
-async function ouvrirPackInventaire(boosterId) {
-  if (!setActif) return
-  const { streamerId, setId } = setActif
-  const qty = packsInventaire[streamerId]?.[setId]?.[boosterId] || 0
-  if (qty < 1) return toast('Aucun pack disponible', 'rouge')
-  packsInventaire[streamerId][setId][boosterId]--
-  if (utilisateurConnecte) {
-    await fetch(`/api/packs/${utilisateurConnecte.id}/use`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ streamerId, setId, boosterType: boosterId })
-    }).catch(() => {})
-  }
-  const config = setData[cleSet(streamerId, setId)]?.config
-  if (config) afficherBoutique(config, null)
-  ouvrirBooster(boosterId)
-}
-
-
-function tirerCarte(cartes, raretes, garantie) {
-  const total = Object.values(raretes).reduce((a, r) => a + r.chance, 0)
-  let hasard  = Math.random() * total
-  let rarete  = null
-  for (const [nom, d] of Object.entries(raretes)) { hasard -= d.chance; if (hasard <= 0) { rarete = nom; break } }
-  const ordre = ['Commun','Peu Commun','Rare','Épique','Légendaire']
-  if (garantie && ordre.indexOf(rarete) < ordre.indexOf(garantie)) rarete = garantie
-  const pool = cartes.filter(c => c.rarete === rarete)
-  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : cartes[0]
-}
-
-function preparerBooster(boosterId) {
-  const { streamerId, setId } = setActif
-  const data    = setData[cleSet(streamerId, setId)]
-  const booster = data.config.boosters[boosterId]
-  const resultat = []
-  const nb = booster.nb_cartes / 10
-  for (let b = 0; b < nb; b++) {
-    for (let i = 0; i < 10; i++) {
-      const garantie = (b === nb - 1 && i === 9) ? booster.garantie : null
-      resultat.push(tirerCarte(data.cards, data.config.raretes, garantie))
-    }
-  }
-  return resultat
-}
-
-
-function ouvrirBooster(boosterId) {
-  if (!setActif) return toast('Sélectionne un set d\'abord', 'rouge')
-  setBooster     = { ...setActif }
-  cartesEnCours  = preparerBooster(boosterId)
-  indexCourant   = 0
-  carteRetournee = false
-
-  const data = setData[cleSet(setBooster.streamerId, setBooster.setId)]
-  const s    = streamers.find(s => s.id === setBooster.streamerId)
-  document.getElementById('modalSetLabel').textContent = `${s?.nom||''} — ${data.config.nom}`
-  document.getElementById('modalTitre').textContent    = data.config.boosters[boosterId].nom.toUpperCase()
-  document.getElementById('totalCartes').textContent   = cartesEnCours.length
-  document.getElementById('cartesDeja').innerHTML      = ''
-  document.getElementById('cartesDeja').style.display  = 'flex'
-  document.getElementById('grilleModal').style.display = 'none'
-  document.getElementById('grilleModal').innerHTML     = ''
-  const mb = document.querySelector('#modalBooster .modal-body')
-  if (mb) { mb.style.minHeight = ''; mb.style.padding = '' }
-  document.getElementById('btnAjouter').style.display    = 'none'
-  document.getElementById('btnSuivante').style.display   = 'none'
-  document.getElementById('btnToutOuvrir').style.display = ''
-  document.getElementById('carteFlipWrap').style.display = ''
-  chargerCarte(0)
-
-  const modal = document.getElementById('modalBooster')
-  modal.style.setProperty('display', 'flex', 'important')
-  setTimeout(() => modal.style.opacity = '1', 10)
-}
-
-function fermerModal() {
-  const modal = document.getElementById('modalBooster')
-  modal.style.opacity = '0'
-  setTimeout(() => modal.style.setProperty('display','none','important'), 200)
-  cartesEnCours = []
-}
-
-function chargerCarte(index) {
-  carteRetournee = false
-  document.getElementById('numCarte').textContent = index + 1
-  document.getElementById('barreProgression').style.width = (index / cartesEnCours.length * 100) + '%'
-  document.getElementById('infoRevelee').style.visibility = 'hidden'
-  document.getElementById('btnSuivante').style.display    = 'none'
-  document.getElementById('btnAjouter').style.display     = 'none'
-  document.getElementById('carteDos').innerHTML           = ''
-  document.getElementById('carteFlipInner').classList.remove('retournee')
-  document.getElementById('carteFlipWrap').style.cursor   = 'default'
-  document.getElementById('carteTopBar').style.background = '#e2e2e2'
-  setTimeout(() => {
-    document.getElementById('carteDos').innerHTML = construireCarte(cartesEnCours[index], setBooster.streamerId, setBooster.setId)
-    document.getElementById('carteFlipWrap').style.cursor = 'pointer'
-  }, 650)
-}
-
-function revelerCarte() {
-  if (carteRetournee) return
-  carteRetournee = true
-  const carte  = cartesEnCours[indexCourant]
-  const config = setData[cleSet(setBooster.streamerId, setBooster.setId)]?.config
-
-  document.getElementById('carteFlipInner').classList.add('retournee')
-  document.getElementById('carteFlipWrap').style.cursor = 'default'
-
-  const couleursBarre = { Commun:'#8a9bb0','Peu Commun':'#4caf80',Rare:'#4a90d9','Épique':'#9b59b6','Légendaire':'#eab308' }
-  document.getElementById('carteTopBar').style.background = couleursBarre[carte.rarete] || '#e2e2e2'
-
-  const flashCouleurs = { Rare:'#1a7fd430','Épique':'#9b59b635','Légendaire':'#f0a50045' }
-  if (flashCouleurs[carte.rarete]) {
-    const f = document.createElement('div')
-    f.className = 'flash-rarete'
-    f.style.background = `radial-gradient(ellipse at center,${flashCouleurs[carte.rarete]},transparent 70%)`
-    document.body.appendChild(f)
-    setTimeout(() => f.remove(), 600)
-  }
-  if (carte.rarete === 'Légendaire') lancerParticules()
-
-  setTimeout(() => {
-    const rarete = config?.raretes[carte.rarete] || { couleur:'#000' }
-    document.getElementById('infoNom').textContent      = carte.nom
-    const badge = document.getElementById('infoRarete')
-    badge.textContent       = carte.rarete
-    badge.style.background  = rarete.couleur + '20'
-    badge.style.color       = rarete.couleur
-    badge.style.borderColor = rarete.couleur + '60'
-    document.getElementById('infoRevelee').style.visibility = 'visible'
-    const estDerniere = indexCourant === cartesEnCours.length - 1
-    document.getElementById(estDerniere ? 'btnAjouter' : 'btnSuivante').style.display = ''
-    if (estDerniere) document.getElementById('barreProgression').style.width = '100%'
-  }, 450)
-
-  setTimeout(() => {
-    const mini = document.createElement('div')
-    mini.className = 'mini-carte'
-    mini.innerHTML = construireCarte(carte, setBooster.streamerId, setBooster.setId)
-    document.getElementById('cartesDeja').appendChild(mini)
-  }, 550)
-}
-
-function carteSuivante() { indexCourant++; chargerCarte(indexCourant) }
-
-async function ajouterACollection() {
-  const cartes     = [...cartesEnCours]
-  const { streamerId, setId } = setBooster
-  if (!collectionGlobale[streamerId]) collectionGlobale[streamerId] = {}
-  if (!collectionGlobale[streamerId][setId]) collectionGlobale[streamerId][setId] = {}
-  cartes.forEach(c => {
-    collectionGlobale[streamerId][setId][c.id] = (collectionGlobale[streamerId][setId][c.id] || 0) + 1
-  })
-  fermerModal()
-  afficherCollection()
-  const sNom = setData[cleSet(streamerId, setId)]?.config?.nom || setId
-  toast(`${cartes.length} cartes ajoutées — ${sNom} !`)
-  if (!utilisateurConnecte) return
-  try {
-    await fetch(`/api/streamer/${streamerId}/set/${setId}/collection/${utilisateurConnecte.id}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cartes: cartes.map(c => c.id) })
-    })
-  } catch (e) { console.error(e) }
-}
-
-function toutOuvrir() {
-  document.getElementById('btnToutOuvrir').disabled      = true
-  document.getElementById('carteFlipWrap').style.display = 'none'
-  document.getElementById('infoRevelee').style.visibility = 'hidden'
-  document.getElementById('cartesDeja').style.display    = 'none'
-  const mb = document.querySelector('#modalBooster .modal-body')
-  if (mb) { mb.style.minHeight = '0'; mb.style.padding = '16px' }
-  const grille = document.getElementById('grilleModal')
-  grille.style.display = 'grid'; grille.innerHTML = ''
-  const restantes = cartesEnCours.slice(indexCourant)
-  const delai = Math.max(16, Math.floor(2000 / restantes.length))
-  let i = 0
-  function next() {
-    if (i >= restantes.length) {
-      document.getElementById('barreProgression').style.width = '100%'
-      document.getElementById('btnToutOuvrir').style.display  = 'none'
-      document.getElementById('btnSuivante').style.display    = 'none'
-      document.getElementById('btnAjouter').style.display     = ''
-      return
-    }
-    const carte = restantes[i]
-    const w = document.createElement('div')
-    w.style.cssText = 'width:100%;aspect-ratio:63/88;animation:popIn .2s ease'
-    w.innerHTML = construireCarte(carte, setBooster.streamerId, setBooster.setId)
-    grille.appendChild(w)
-    const mini = document.createElement('div')
-    mini.className = 'mini-carte'
-    mini.innerHTML = construireCarte(carte, setBooster.streamerId, setBooster.setId)
-    document.getElementById('cartesDeja').appendChild(mini)
-    document.getElementById('barreProgression').style.width = ((indexCourant+i+1)/cartesEnCours.length*100)+'%'
-    document.getElementById('numCarte').textContent = indexCourant+i+1
-    i++; setTimeout(next, delai)
-  }
-  next()
-}
-
-
-function filtrer(valeur, bouton) {
-  filtreCourant = valeur
-  genererFiltres()
-  if (streamerActif && !setActif) afficherCollectionStreamer(streamerActif)
-  else afficherCollection()
-}
-
-function genererFiltres() {
-  const bar = document.getElementById('filtresCollection')
-  if (!bar) return
-
-  // Toujours garder le bouton "Toutes"
-  const actif = filtreCourant
-  let html = `<button class="px-gutter py-margin-mobile font-label-caps text-label-caps uppercase whitespace-nowrap border-r border-primary ${actif==='tous'?'bg-primary text-on-primary':'text-primary hover:bg-surface-variant'}" onclick="filtrer('tous',this)">Toutes</button>`
-
-  if (setActif) {
-    const { streamerId, setId } = setActif
-    const sData = setData[cleSet(streamerId, setId)]
-    const raretes = sData?.config?.raretes || {}
-    const ordre = ['Légendaire','Épique','Rare','Peu Commun','Commun']
-    const raretesTri = Object.keys(raretes).sort((a,b) => ordre.indexOf(a) - ordre.indexOf(b))
-    raretesTri.forEach(r => {
-      const couleur = raretes[r]?.couleur || '#000'
-      const isActif = actif === r
-      html += `<button class="px-gutter py-margin-mobile font-label-caps text-label-caps uppercase whitespace-nowrap border-r border-primary ${isActif?'text-on-primary':'text-primary hover:bg-surface-variant'}" style="${isActif?`background:${couleur}`:`color:${couleur}`}" onclick="filtrer('${r}',this)">${r}</button>`
-    })
-  }
-
-  bar.innerHTML = html
-}
-
-function afficherCollection() {
-  const ordre  = ['Légendaire','Épique','Rare','Peu Commun','Commun']
-
-  const grille    = document.getElementById('grilleCartes')
-  const compteur  = document.getElementById('compteurCollection')
-  const progress  = document.getElementById('progressionCollection')
-
-  if (setActif) {
-    const { streamerId, setId } = setActif
-    const sData  = setData[cleSet(streamerId, setId)]
-    const colSet = collectionGlobale[streamerId]?.[setId] || {}
-    const toutes = sData?.cards || []
-
-    // Progression unique
-    const possedees = toutes.filter(c => colSet[c.id] > 0).length
-    if (progress) {
-      progress.textContent = `${possedees}/${toutes.length}`
-      progress.style.display = ''
-    }
-
-    let entrees = toutes.map(c => ({ carte: c, qty: colSet[c.id] || 0, streamerId, setId }))
-
-    if (filtreCourant !== 'tous') {
-      entrees = entrees.filter(({ carte }) => carte.rarete === filtreCourant || carte.type === filtreCourant)
-    }
-    entrees.sort((a,b) => ordre.indexOf(a.carte.rarete) - ordre.indexOf(b.carte.rarete))
-
-    const totalExemplaires = entrees.reduce((acc,e) => acc + e.qty, 0)
-    compteur.textContent = totalExemplaires + ' exemplaire' + (totalExemplaires > 1 ? 's' : '')
-
-    grille.innerHTML = entrees.map(({ carte, qty }) => {
-      const possede = qty > 0
-      return `<div class="dense-grid-item aspect-square relative ${possede ? 'cursor-pointer hover:bg-surface-variant' : 'cursor-default'} group transition-colors"
-                   ${possede ? `onclick="voirCarte('${carte.id}','${streamerId}','${setId}')"` : ''}>
-        <div style="${possede ? '' : 'filter:grayscale(1) brightness(.3);pointer-events:none'}">
-          ${construireCarte(carte, streamerId, setId)}
-        </div>
-        ${qty > 1 ? `<div class="absolute top-1 right-1 border border-primary bg-surface font-mono-label text-[10px] px-1 z-10">×${qty}</div>` : ''}
-        ${!possede ? `<div class="absolute inset-0 flex items-center justify-center"><span style="font-size:1.5em;opacity:.4">🔒</span></div>` : ''}
-      </div>`
-    }).join('')
-
-  } else {
-    // Vue globale toutes collections
-    if (progress) progress.style.display = 'none'
-    let entrees = []
-    for (const [streamerId, sets] of Object.entries(collectionGlobale)) {
-      for (const [setId, col] of Object.entries(sets)) {
-        const cards = setData[cleSet(streamerId, setId)]?.cards || []
-        for (const [id, qty] of Object.entries(col)) {
-          const carte = cards.find(c => c.id === id)
-          if (carte) entrees.push({ carte, qty, streamerId, setId })
-        }
+  document.getElementById('contactForm').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const form = e.target
+    const data = Object.fromEntries(new FormData(form))
+
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      if (res.ok) {
+        form.reset()
+        document.getElementById('formSuccess').style.display = 'block'
       }
+    } catch(err) {
+      // fallback silencieux
+      form.reset()
+      document.getElementById('formSuccess').style.display = 'block'
     }
-    if (filtreCourant !== 'tous') {
-      entrees = entrees.filter(({ carte }) => carte.rarete === filtreCourant || carte.type === filtreCourant)
-    }
-    entrees.sort((a,b) => ordre.indexOf(a.carte.rarete) - ordre.indexOf(b.carte.rarete))
-    const total = entrees.reduce((acc,e) => acc + e.qty, 0)
-    compteur.textContent = total + ' carte' + (total > 1 ? 's' : '')
-
-    if (!entrees.length) {
-      grille.innerHTML = `<div class="dense-grid-item col-span-full p-12 text-center font-mono-label text-mono-label text-outline uppercase">Aucune carte ici pour l'instant.</div>`
-      return
-    }
-
-    grille.innerHTML = entrees.map(({ carte, qty, streamerId, setId }) => {
-      const sData    = setData[cleSet(streamerId, setId)]
-      const setNom   = sData?.config?.nom || setId
-      const setColor = sData?.config?.couleur || '#000'
-      return `<div class="dense-grid-item aspect-square relative cursor-pointer group hover:bg-surface-variant transition-colors"
-                   onclick="voirCarte('${carte.id}','${streamerId}','${setId}')">
-        ${construireCarte(carte, streamerId, setId)}
-        ${qty > 1 ? `<div class="absolute top-1 right-1 border border-primary bg-surface font-mono-label text-[10px] px-1 z-10">×${qty}</div>` : ''}
-        <div class="absolute bottom-0 left-0 right-0 px-1 py-px text-center" style="font-size:7px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:${setColor};color:#fff;opacity:.85">${setNom}</div>
-      </div>`
-    }).join('')
-  }
-}
-
-
-function resolveImageUrl(c, streamerId, setId) {
-  if (!c.image) return `streamers/${streamerId}/sets/${setId}/img/${c.id}.png`
-  if (c.image.startsWith('http://') || c.image.startsWith('https://') || c.image.startsWith('/')) return c.image
-  return `streamers/${streamerId}/sets/${setId}/img/${c.image}`
-}
-
-function construireCarte(c, streamerId, setId) {
-  const imgUrl = resolveImageUrl(c, streamerId || 'test', setId || 'saison1')
-  return `
-  <div class="carte" data-rarete="${c.rarete}" style="position:relative;width:100%;height:100%;overflow:hidden;">
-    <img src="${imgUrl}" alt="${c.nom}" style="width:100%;height:100%;object-fit:cover;display:block;"
-         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
-    <div style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-size:2.5em;background:#111;color:#555;">🃏</div>
-  </div>`
-}
-
-
-function voirCarte(id, streamerId, setId) {
-  const sId  = streamerId || setActif?.streamerId
-  const seId = setId      || setActif?.setId
-  const data = sId && seId ? setData[cleSet(sId, seId)] : null
-  if (!data) return
-  const c = data.cards.find(c => c.id === id)
-  if (!c) return
-
-  document.getElementById('detailCarteWrap').innerHTML = ''
-  const div = document.createElement('div')
-  div.style.cssText = 'width:210px;height:294px;position:relative'
-  div.innerHTML     = construireCarte(c, sId, seId)
-  document.getElementById('detailCarteWrap').appendChild(div)
-
-  document.getElementById('detailNom').textContent  = c.nom
-  document.getElementById('detailType').textContent = c.type
-  document.getElementById('detailId').textContent   = c.id.toUpperCase()
-
-  const descEl = document.getElementById('detailDesc')
-  if (c.capacites?.length) {
-    descEl.style.whiteSpace = 'pre-line'
-    descEl.textContent = c.capacites.map(cap => `⚙ ${cap.nom} : ${cap.texte}`).join('\n')
-    if (c.citation) descEl.textContent += `\n\n${c.citation}`
-  } else {
-    descEl.style.whiteSpace = ''
-    descEl.textContent = c.desc || ''
-  }
-
-  const rarete = data.config.raretes[c.rarete] || { couleur:'#000' }
-  const badge  = document.getElementById('detailRarete')
-  badge.textContent = c.rarete; badge.style.color = rarete.couleur
-  badge.style.borderColor = rarete.couleur + '70'; badge.style.background = rarete.couleur + '15'
-
-  const statsWrap = document.getElementById('detailStatsWrap')
-  if (c.pv !== undefined) {
-    statsWrap.style.display = 'flex'
-    document.getElementById('detailPv').textContent  = c.pv
-    document.getElementById('detailAtk').textContent = c.attaque
-    document.getElementById('detailDef').textContent = c.defense
-    document.getElementById('detailCout').textContent = c.cout
-  } else { statsWrap.style.display = 'none' }
-
-  const nb  = collectionGlobale[sId]?.[seId]?.[id] || 0
-  const qEl = document.getElementById('detailQuantite')
-  qEl.textContent = nb > 0 ? `×${nb} dans ta collection` : 'Pas encore obtenue'
-  qEl.style.color = nb > 0 ? '#000' : '#999'
-
-  // section désenchantement (doublons uniquement, garde min 1)
-  const wrap = document.getElementById('detailDesenchanterWrap')
-  const doublons = Math.max(0, nb - 1)
-  const gain     = essenceParRarete(seId, sId, c.rarete)
-  if (doublons > 0 && utilisateurConnecte) {
-    wrap.style.display = ''
-    document.getElementById('detailDoublons').textContent     = doublons
-    document.getElementById('detailGainEssence').textContent  = gain
-    const btn = document.getElementById('btnDesenchanter')
-    btn.dataset.carteId   = id
-    btn.dataset.streamerId = sId
-    btn.dataset.setId     = seId
-    btn.disabled = false
-  } else {
-    wrap.style.display = 'none'
-  }
-
-  const modal = document.getElementById('modalDetail')
-  modal.style.setProperty('display','flex','important')
-  setTimeout(() => modal.style.opacity = '1', 10)
-}
-
-async function desenchanterCarte() {
-  if (!utilisateurConnecte) return
-  const btn = document.getElementById('btnDesenchanter')
-  const { carteId, streamerId, setId } = btn.dataset
-  btn.disabled = true
-  try {
-    const r = await fetch(`/api/streamer/${streamerId}/set/${setId}/desenchanter/${utilisateurConnecte.id}`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ carteId, nb: 1 })
-    })
-    const data = await r.json()
-    if (!r.ok) { toast(data.error || 'Erreur', 'rouge'); btn.disabled = false; return }
-
-    // mettre à jour les états locaux
-    if (collectionGlobale[streamerId]?.[setId]?.[carteId]) {
-      collectionGlobale[streamerId][setId][carteId] -= 1
-    }
-    if (!essenceGlobale[streamerId]) essenceGlobale[streamerId] = {}
-    essenceGlobale[streamerId][setId] = data.essence
-
-    toast(`+${data.gain} essence`, 'vert')
-    voirCarte(carteId, streamerId, setId)  // refresh modal
-    afficherCollection()
-    if (setActif?.streamerId === streamerId && setActif?.setId === setId) {
-      afficherBoutique(setData[cleSet(streamerId, setId)]?.config, null)
-    }
-  } catch (e) {
-    toast('Erreur réseau', 'rouge')
-    btn.disabled = false
-  }
-}
-
-function fermerDetail(e) {
-  if (e && e.target !== document.getElementById('modalDetail')) return
-  const modal = document.getElementById('modalDetail')
-  modal.style.opacity = '0'
-  setTimeout(() => modal.style.setProperty('display','none','important'), 200)
-}
-
-
-function mettreAJourPoints() {
-  document.getElementById('badgePointsWrap').style.display = 'none'
-}
-
-
-
-function connecterServeur() {
-  if (location.protocol === 'file:') return
-  const viewerId  = utilisateurConnecte?.id || 'anonyme'
-  const connexion = new EventSource(`/events?viewerId=${viewerId}`)
-
-  connexion.onopen = () => {
-    const txt = 'connecté'
-    document.getElementById('statutServeur').textContent = txt
-    const s2 = document.getElementById('statutServeurSidebar')
-    if (s2) s2.textContent = txt
-  }
-
-  connexion.onmessage = async (e) => {
-    const data = JSON.parse(e.data)
-    const { type, streamerId, setId, booster: boosterId, utilisateur } = data
-    if (!streamerId || !setId || !boosterId) return
-
-    if (!setData[cleSet(streamerId, setId)]) await chargerSetData(streamerId, setId)
-    const sData   = setData[cleSet(streamerId, setId)]
-    const booster = sData?.config?.boosters?.[boosterId]
-    if (!booster) return
-
-    await recevoirPack(streamerId, setId, boosterId)
-    toast(`${utilisateur} reçoit un ${booster.nom} — ${sData.config.nom}`)
-
-    if (!setActif || setActif.streamerId !== streamerId || setActif.setId !== setId) {
-      await selectionnerSet(streamerId, setId)
-    }
-  }
-
-  connexion.onerror = () => {
-    const txt = 'déconnecté'
-    document.getElementById('statutServeur').textContent = txt
-    const s2 = document.getElementById('statutServeurSidebar')
-    if (s2) s2.textContent = txt
-  }
-}
-
-
-function lancerParticules() {
-  for (let i = 0; i < 16; i++) {
-    const p   = document.createElement('div')
-    p.className = 'particule'
-    const t   = 4 + Math.random() * 5
-    const ang = (Math.PI * 2 * i) / 16
-    const d   = 50 + Math.random() * 80
-    p.style.cssText = `width:${t}px;height:${t}px;background:#eab308;left:50%;top:40%;--dx:${Math.cos(ang)*d}px;--dy:${Math.sin(ang)*d}px;animation-duration:${.7+Math.random()*.5}s`
-    document.body.appendChild(p)
-    setTimeout(() => p.remove(), 1200)
-  }
-}
-
-
-function toast(msg, type) {
-  const el = document.createElement('div')
-  el.className = 'toast' + (type ? ' '+type : '')
-  el.textContent = msg
-  document.getElementById('toasts').appendChild(el)
-  setTimeout(() => el.remove(), 3000)
-}
-
-
-async function autoSelectPremierSet() {
-  if (utilisateurConnecte && streamers.length > 0 && streamers[0].sets?.length > 0) {
-    await selectionnerSet(streamers[0].id, streamers[0].sets[0].id)
-  }
-}
-
-async function init() {
-  await chargerStreamers()
-  await verifierConnexion()
-  connecterServeur()
-  await autoSelectPremierSet()
-}
-
-
-init()
+  })
 </script>
+
 </body>
 </html>
