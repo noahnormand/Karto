@@ -342,7 +342,10 @@
     <section id="shopSection" class="border-b border-primary" style="display:none">
       <div class="px-4 md:px-margin-desktop py-4 border-b border-primary flex items-center justify-between">
         <h2 class="font-h2 text-h2 uppercase">Mes packs</h2>
-        <span class="font-mono-label text-mono-label text-outline uppercase hidden sm:inline">Reçus via points de chaîne</span>
+        <div id="essenceBanner" class="flex items-center gap-2" style="display:none">
+          <span class="font-mono-label text-mono-label text-outline uppercase">Essence du set :</span>
+          <span class="font-display text-h3 font-black" data-essence-val>0</span>
+        </div>
       </div>
       <div class="grid grid-cols-3 gap-0" id="shopGrid"></div>
     </section>
@@ -479,6 +482,16 @@
         </div>
         <div class="font-label-caps text-label-caps uppercase border border-primary px-3 py-1 bg-surface-container" id="detailQuantite"></div>
       </div>
+      <div id="detailDesenchanterWrap" class="border-t border-primary p-gutter flex flex-col gap-2" style="display:none">
+        <div class="flex items-center justify-between">
+          <span class="font-mono-label text-mono-label text-outline uppercase">Doublons : <span id="detailDoublons" class="text-primary"></span></span>
+          <span class="font-mono-label text-mono-label text-outline uppercase">+<span id="detailGainEssence" class="text-primary"></span> essence</span>
+        </div>
+        <button id="btnDesenchanter" onclick="desenchanterCarte()"
+                class="w-full bg-primary text-on-primary font-label-caps text-label-caps uppercase py-2 border border-primary hover:bg-inverse-surface transition-colors">
+          Désenchanter 1 doublon
+        </button>
+      </div>
     </div>
     <button onclick="fermerDetail()"
             class="absolute -top-px -right-px w-10 h-10 bg-surface border border-primary flex items-center justify-center hover:bg-primary hover:text-on-primary z-50 font-bold">✕</button>
@@ -544,15 +557,26 @@ async function chargerUtilisateur(token) {
 
 async function chargerCollectionGlobale(viewerId) {
   try {
-    const [col, packs] = await Promise.all([
+    const [col, packs, ess] = await Promise.all([
       fetch(`/api/collection/${viewerId}`).then(r => r.json()),
-      fetch(`/api/packs/${viewerId}`).then(r => r.json())
+      fetch(`/api/packs/${viewerId}`).then(r => r.json()),
+      fetch(`/api/essence/${viewerId}`).then(r => r.json())
     ])
     collectionGlobale = col
     packsInventaire   = packs
+    essenceGlobale    = ess
     afficherCollection()
     if (setActif) afficherBoutique(setData[cleSet(setActif.streamerId, setActif.setId)]?.config, null)
   } catch (e) { console.error(e) }
+}
+
+function essenceActuelle(streamerId, setId) {
+  return essenceGlobale[streamerId]?.[setId] || 0
+}
+
+function essenceParRarete(setId, streamerId, rarete) {
+  const sData = setData[cleSet(streamerId, setId)]
+  return sData?.config?.raretes?.[rarete]?.essence || 0
 }
 
 let drawerOuvert = false
@@ -613,6 +637,7 @@ let streamerActif     = null  // streamerId ou null
 let setData           = {}    // { "kc/saison1": { config, cards } }
 let collectionGlobale = {}    // { streamerId: { setId: { carteId: qty } } }
 let packsInventaire   = {}    // { streamerId: { setId: { boosterType: qty } } }
+let essenceGlobale    = {}    // { streamerId: { setId: nb } }
 let filtreCourant     = 'tous'
 
 // Booster en cours
@@ -810,11 +835,14 @@ function afficherBoutique(config, streamer) {
   const grid = document.getElementById('shopGrid')
   grid.innerHTML = ''
   const { streamerId, setId } = setActif
-  const inv = packsInventaire[streamerId]?.[setId] || {}
+  const inv     = packsInventaire[streamerId]?.[setId] || {}
+  const essence = essenceActuelle(streamerId, setId)
 
   Object.entries(config.boosters).forEach(([id, booster], i, arr) => {
     const isLast = i === arr.length - 1
     const qty    = inv[id] || 0
+    const cE     = booster.cout_essence || 0
+    const peutRacheter = cE > 0 && essence >= cE
     const div    = document.createElement('div')
     div.id        = `pack-card-${streamerId}-${setId}-${id}`
     div.className = `px-4 md:px-6 py-4 md:py-6 ${isLast ? '' : 'border-r border-primary'} flex flex-col items-center justify-between`
@@ -838,9 +866,45 @@ function afficherBoutique(config, streamer) {
                 class="w-full bg-primary text-on-primary font-label-caps text-label-caps uppercase py-2 border border-primary hover:bg-inverse-surface disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
           Ouvrir
         </button>
+        ${cE > 0 ? `
+        <button onclick="racheterBooster('${id}')"
+                ${peutRacheter ? '' : 'disabled'}
+                class="w-full bg-surface text-primary font-mono-label text-mono-label uppercase py-2 border border-primary hover:bg-surface-variant disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+          Racheter · ${cE} ess
+        </button>` : ''}
       </div>`
     grid.appendChild(div)
   })
+
+  // bandeau essence du set
+  const banner = document.getElementById('essenceBanner')
+  if (banner) {
+    banner.style.display = ''
+    banner.querySelector('[data-essence-val]').textContent = essence
+  }
+}
+
+async function racheterBooster(boosterType) {
+  if (!utilisateurConnecte || !setActif) return
+  const { streamerId, setId } = setActif
+  try {
+    const r = await fetch(`/api/streamer/${streamerId}/set/${setId}/racheter/${utilisateurConnecte.id}`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ boosterType })
+    })
+    const data = await r.json()
+    if (!r.ok) { toast(data.error || 'Essence insuffisante', 'rouge'); return }
+
+    if (!essenceGlobale[streamerId]) essenceGlobale[streamerId] = {}
+    essenceGlobale[streamerId][setId] = data.essence
+
+    if (!packsInventaire[streamerId]) packsInventaire[streamerId] = {}
+    if (!packsInventaire[streamerId][setId]) packsInventaire[streamerId][setId] = {}
+    packsInventaire[streamerId][setId][boosterType] = (packsInventaire[streamerId][setId][boosterType] || 0) + 1
+
+    toast('Booster racheté !', 'vert')
+    afficherBoutique(setData[cleSet(streamerId, setId)]?.config, null)
+  } catch (e) { toast('Erreur réseau', 'rouge') }
 }
 
 function afficherCollectionsGuest() {
@@ -1284,9 +1348,58 @@ function voirCarte(id, streamerId, setId) {
   qEl.textContent = nb > 0 ? `×${nb} dans ta collection` : 'Pas encore obtenue'
   qEl.style.color = nb > 0 ? '#000' : '#999'
 
+  // section désenchantement (doublons uniquement, garde min 1)
+  const wrap = document.getElementById('detailDesenchanterWrap')
+  const doublons = Math.max(0, nb - 1)
+  const gain     = essenceParRarete(seId, sId, c.rarete)
+  if (doublons > 0 && utilisateurConnecte) {
+    wrap.style.display = ''
+    document.getElementById('detailDoublons').textContent     = doublons
+    document.getElementById('detailGainEssence').textContent  = gain
+    const btn = document.getElementById('btnDesenchanter')
+    btn.dataset.carteId   = id
+    btn.dataset.streamerId = sId
+    btn.dataset.setId     = seId
+    btn.disabled = false
+  } else {
+    wrap.style.display = 'none'
+  }
+
   const modal = document.getElementById('modalDetail')
   modal.style.setProperty('display','flex','important')
   setTimeout(() => modal.style.opacity = '1', 10)
+}
+
+async function desenchanterCarte() {
+  if (!utilisateurConnecte) return
+  const btn = document.getElementById('btnDesenchanter')
+  const { carteId, streamerId, setId } = btn.dataset
+  btn.disabled = true
+  try {
+    const r = await fetch(`/api/streamer/${streamerId}/set/${setId}/desenchanter/${utilisateurConnecte.id}`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ carteId, nb: 1 })
+    })
+    const data = await r.json()
+    if (!r.ok) { toast(data.error || 'Erreur', 'rouge'); btn.disabled = false; return }
+
+    // mettre à jour les états locaux
+    if (collectionGlobale[streamerId]?.[setId]?.[carteId]) {
+      collectionGlobale[streamerId][setId][carteId] -= 1
+    }
+    if (!essenceGlobale[streamerId]) essenceGlobale[streamerId] = {}
+    essenceGlobale[streamerId][setId] = data.essence
+
+    toast(`+${data.gain} essence`, 'vert')
+    voirCarte(carteId, streamerId, setId)  // refresh modal
+    afficherCollection()
+    if (setActif?.streamerId === streamerId && setActif?.setId === setId) {
+      afficherBoutique(setData[cleSet(streamerId, setId)]?.config, null)
+    }
+  } catch (e) {
+    toast('Erreur réseau', 'rouge')
+    btn.disabled = false
+  }
 }
 
 function fermerDetail(e) {

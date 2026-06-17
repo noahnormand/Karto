@@ -34,6 +34,7 @@ async function refreshTwitchToken() {
     twitchUserToken    = data.access_token
     twitchRefreshToken = data.refresh_token || twitchRefreshToken
     console.log('Token Twitch renouvelé automatiquement.')
+    await saveTokensToDB()
     return true
   } catch(e) {
     console.log('Erreur refresh token:', e.message)
@@ -96,6 +97,12 @@ const db = new Pool({
 
 async function initDB() {
   await db.query(`
+    CREATE TABLE IF NOT EXISTS karto_config (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `)
+  await db.query(`
     CREATE TABLE IF NOT EXISTS viewer_cards (
       viewer_id   TEXT NOT NULL,
       streamer_id TEXT NOT NULL,
@@ -115,8 +122,50 @@ async function initDB() {
       PRIMARY KEY (viewer_id, streamer_id, set_id, booster_type)
     )
   `)
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS viewer_essence (
+      viewer_id   TEXT NOT NULL,
+      streamer_id TEXT NOT NULL,
+      set_id      TEXT NOT NULL,
+      quantite    INTEGER DEFAULT 0,
+      PRIMARY KEY (viewer_id, streamer_id, set_id)
+    )
+  `)
   console.log('db ok')
 }
+
+async function loadTokensFromDB() {
+  try {
+    const { rows } = await db.query(
+      "SELECT key, value FROM karto_config WHERE key IN ('TWITCH_USER_TOKEN', 'TWITCH_REFRESH_TOKEN')"
+    )
+    for (const row of rows) {
+      if (row.key === 'TWITCH_USER_TOKEN')    twitchUserToken    = row.value
+      if (row.key === 'TWITCH_REFRESH_TOKEN') twitchRefreshToken = row.value
+    }
+    if (rows.length) console.log('Tokens Twitch chargés depuis la DB.')
+  } catch(e) {
+    console.log('Impossible de charger les tokens depuis la DB:', e.message)
+  }
+}
+
+async function saveTokensToDB() {
+  try {
+    await db.query(`
+      INSERT INTO karto_config (key, value)
+      VALUES ('TWITCH_USER_TOKEN', $1), ('TWITCH_REFRESH_TOKEN', $2)
+      ON CONFLICT (key) DO UPDATE SET value = excluded.value
+    `, [twitchUserToken, twitchRefreshToken])
+  } catch(e) {
+    console.log('Erreur sauvegarde tokens DB:', e.message)
+  }
+}
+
+// defaults essence si non définis dans config
+const DEFAULT_ESSENCE_RARETE = {
+  'Commun': 5, 'Peu Commun': 10, 'Rare': 25, 'Épique': 75, 'Légendaire': 200
+}
+const DEFAULT_COUT_ESSENCE = { single: 100, pack: 250, display: 800 }
 
 
 // api streamers
@@ -249,6 +298,135 @@ app.post('/api/packs/:viewerId/use', async (req, res) => {
 })
 
 
+// essence (désenchantement + rachat)
+
+app.get('/api/essence/:viewerId', async (req, res) => {
+  const { rows } = await db.query(
+    'SELECT streamer_id, set_id, quantite FROM viewer_essence WHERE viewer_id = $1',
+    [req.params.viewerId]
+  )
+  const e = {}
+  rows.forEach(r => {
+    if (!e[r.streamer_id]) e[r.streamer_id] = {}
+    e[r.streamer_id][r.set_id] = r.quantite
+  })
+  res.json(e)
+})
+
+// désenchanter des doublons : body { carteId, nb }
+app.post('/api/streamer/:id/set/:setId/desenchanter/:viewerId', async (req, res) => {
+  const { id: streamerId, setId, viewerId } = req.params
+  const { carteId, nb = 1 } = req.body
+
+  const set = streamers[streamerId]?.sets[setId]
+  if (!set) return res.status(404).json({ error: 'set introuvable' })
+
+  const carte = set.cards.find(c => c.id === carteId)
+  if (!carte) return res.status(404).json({ error: 'carte introuvable' })
+
+  const nbInt = parseInt(nb, 10)
+  if (!Number.isInteger(nbInt) || nbInt < 1) return res.status(400).json({ error: 'nb invalide' })
+
+  const tauxRarete = set.config.raretes?.[carte.rarete]?.essence
+    ?? DEFAULT_ESSENCE_RARETE[carte.rarete]
+    ?? 5
+  const gain = tauxRarete * nbInt
+
+  const client = await db.connect()
+  try {
+    await client.query('BEGIN')
+
+    const { rows } = await client.query(
+      'SELECT quantite FROM viewer_cards WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3 AND carte_id = $4 FOR UPDATE',
+      [viewerId, streamerId, setId, carteId]
+    )
+    const possede = rows[0]?.quantite || 0
+    // protection : garde toujours min 1 exemplaire
+    if (possede - nbInt < 1) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: 'doublons insuffisants (min 1 gardé)' })
+    }
+
+    await client.query(
+      'UPDATE viewer_cards SET quantite = quantite - $1 WHERE viewer_id = $2 AND streamer_id = $3 AND set_id = $4 AND carte_id = $5',
+      [nbInt, viewerId, streamerId, setId, carteId]
+    )
+
+    await client.query(`
+      INSERT INTO viewer_essence (viewer_id, streamer_id, set_id, quantite)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (viewer_id, streamer_id, set_id)
+      DO UPDATE SET quantite = viewer_essence.quantite + excluded.quantite
+    `, [viewerId, streamerId, setId, gain])
+
+    const { rows: er } = await client.query(
+      'SELECT quantite FROM viewer_essence WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3',
+      [viewerId, streamerId, setId]
+    )
+
+    await client.query('COMMIT')
+    res.json({ ok: true, gain, essence: er[0]?.quantite || 0, restant: possede - nbInt })
+  } catch (e) {
+    await client.query('ROLLBACK')
+    console.log('desenchanter:', e.message)
+    res.status(500).json({ error: 'erreur serveur' })
+  } finally {
+    client.release()
+  }
+})
+
+// racheter un booster avec de l'essence : body { boosterType }
+app.post('/api/streamer/:id/set/:setId/racheter/:viewerId', async (req, res) => {
+  const { id: streamerId, setId, viewerId } = req.params
+  const { boosterType } = req.body
+
+  const set = streamers[streamerId]?.sets[setId]
+  if (!set) return res.status(404).json({ error: 'set introuvable' })
+
+  const booster = set.config.boosters?.[boosterType]
+  if (!booster) return res.status(404).json({ error: 'booster introuvable' })
+
+  const cout = booster.cout_essence ?? DEFAULT_COUT_ESSENCE[boosterType]
+  if (!cout) return res.status(400).json({ error: 'booster non rachetable' })
+
+  const client = await db.connect()
+  try {
+    await client.query('BEGIN')
+
+    const { rows } = await client.query(
+      'SELECT quantite FROM viewer_essence WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3 FOR UPDATE',
+      [viewerId, streamerId, setId]
+    )
+    const e = rows[0]?.quantite || 0
+    if (e < cout) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: 'essence insuffisante', requis: cout, possede: e })
+    }
+
+    await client.query(
+      'UPDATE viewer_essence SET quantite = quantite - $1 WHERE viewer_id = $2 AND streamer_id = $3 AND set_id = $4',
+      [cout, viewerId, streamerId, setId]
+    )
+
+    await client.query(`
+      INSERT INTO viewer_packs (viewer_id, streamer_id, set_id, booster_type, quantite)
+      VALUES ($1, $2, $3, $4, 1)
+      ON CONFLICT (viewer_id, streamer_id, set_id, booster_type)
+      DO UPDATE SET quantite = viewer_packs.quantite + 1
+    `, [viewerId, streamerId, setId, boosterType])
+
+    await client.query('COMMIT')
+    res.json({ ok: true, essence: e - cout })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.log('racheter:', err.message)
+    res.status(500).json({ error: 'erreur serveur' })
+  } finally {
+    client.release()
+  }
+})
+
+
 // sse
 
 const connections = new Map()
@@ -374,7 +552,7 @@ app.post('/webhook', async (req, res) => {
 
 // démarrage
 
-initDB().then(() => {
+initDB().then(() => loadTokensFromDB()).then(() => {
   if (prod) {
     const port = process.env.PORT || 3000
     http.createServer(app).listen(port, () => console.log(`http://localhost:${port}`))

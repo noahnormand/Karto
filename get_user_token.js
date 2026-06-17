@@ -72,7 +72,23 @@ const server = http.createServer(async (req, res) => {
   }
   fs.writeFileSync('.env', env)
   console.log('.env mis à jour (access token + refresh token).')
-  console.log('\nN\'oublie pas de mettre à jour TWITCH_USER_TOKEN et TWITCH_REFRESH_TOKEN sur Render.')
+
+  // Sauvegarde aussi en base de données
+  const { Pool } = require('pg')
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
+  try {
+    await pool.query(`
+      INSERT INTO karto_config (key, value)
+      VALUES ('TWITCH_USER_TOKEN', $1), ('TWITCH_REFRESH_TOKEN', $2)
+      ON CONFLICT (key) DO UPDATE SET value = excluded.value
+    `, [data.access_token, data.refresh_token])
+    console.log('Tokens sauvegardés en DB — plus besoin de toucher Render.')
+  } catch(e) {
+    console.log('Erreur sauvegarde DB:', e.message)
+  } finally {
+    await pool.end()
+  }
+
   console.log('\nLance maintenant : node register_eventsub.js')
 })
 
