@@ -861,8 +861,26 @@ function voirCarte(carteId, streamerId, setId) {
   if (!carte) return
   carteDetailCourante = { carte, streamerId, setId }
 
+  const couleurModal = COULEURS_RARETE[carte.rarete] || '#888'
+  const imgUrlModal  = `streamers/${streamerId}/sets/${setId}/img/${carte.image}`
   document.getElementById('detailCarteWrap').innerHTML =
-    `<div style="width:100%;height:100%">${construireCarte(carte, streamerId, setId)}</div>`
+    `<div style="width:100%;height:100%;border:2px solid ${couleurModal};background:#0d0d0d;display:flex;flex-direction:column;overflow:hidden">
+      <div style="height:4px;background:${couleurModal};flex-shrink:0"></div>
+      <div style="flex:1;position:relative;overflow:hidden">
+        <img src="${imgUrlModal}" alt="${carte.nom}"
+             style="width:100%;height:100%;object-fit:contain;display:block;image-rendering:high-quality"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;flex-direction:column;gap:8px;padding:16px;text-align:center">
+          <div style="font-size:12px;color:${couleurModal};text-transform:uppercase;letter-spacing:.1em;font-weight:700">${carte.type}</div>
+          <div style="font-size:18px;color:#eee;font-weight:900;line-height:1.2">${carte.nom}</div>
+          <div style="font-size:11px;color:${couleurModal};opacity:.7">${carte.rarete}</div>
+        </div>
+      </div>
+      <div style="padding:8px 10px;background:#111;border-top:1px solid ${couleurModal}55;flex-shrink:0">
+        <div style="font-size:9px;color:${couleurModal};text-transform:uppercase;letter-spacing:.08em;font-weight:700">${carte.rarete}</div>
+        <div style="font-size:11px;color:#ccc;font-weight:700">${carte.nom}</div>
+      </div>
+    </div>`
 
   document.getElementById('detailType').textContent = carte.type || ''
   document.getElementById('detailNom').textContent  = carte.nom
