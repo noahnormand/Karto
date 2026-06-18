@@ -912,6 +912,19 @@ app.post('/api/admin/streamer/:id/sets', adminAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }) }
 })
 
+app.delete('/api/admin/streamer/:id/set/:setId', adminAuth, async (req, res) => {
+  try {
+    const { id, setId } = req.params
+    await db.query('DELETE FROM sets_config WHERE streamer_id = $1 AND set_id = $2', [id, setId])
+    if (streamers[id]) delete streamers[id].sets[setId]
+    try {
+      const dir = path.join('streamers', id, 'sets', setId)
+      if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true })
+    } catch(_) {}
+    res.json({ ok: true })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
 app.patch('/api/admin/streamer/:id/set/:setId/config', adminAuth, async (req, res) => {
   try {
     const { id, setId } = req.params

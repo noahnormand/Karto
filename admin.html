@@ -300,6 +300,14 @@
       </div>
 
       <div class="section">
+        <div class="section-head">
+          <h2>Sets existants</h2>
+          <button class="btn sm" onclick="loadSetsTab()">↻ Actualiser</button>
+        </div>
+        <div id="sets-list"><div class="empty">Chargement…</div></div>
+      </div>
+
+      <div class="section">
         <div class="section-head"><h2>Configurer les boosters</h2></div>
         <div class="section-body">
           <div class="alert info" style="margin-top:0;margin-bottom:16px">Un set est créé avec un booster "single" par défaut. Modifie le coût en points ici.</div>
@@ -559,8 +567,26 @@ function updateStreamerSelects() {
 // ── Sets ──────────────────────────────────────────────────────────────────────
 
 function loadSetsTab() {
-  if (!streamersData.length) loadStreamers()
-  else updateStreamerSelects()
+  if (!streamersData.length) loadStreamers().then(() => renderSetsList())
+  else { updateStreamerSelects(); renderSetsList() }
+}
+
+function renderSetsList() {
+  const el = document.getElementById('sets-list')
+  if (!el) return
+  const allSets = streamersData.flatMap(s => s.sets.map(st => ({ ...st, streamerId: s.id, streamerNom: s.config.nom })))
+  if (!allSets.length) { el.innerHTML = '<div class="empty">Aucun set configuré.</div>'; return }
+  el.innerHTML = `<table>
+    <thead><tr><th>Streamer</th><th>ID</th><th>Nom</th><th>Boosters</th><th>Reward ID</th><th></th></tr></thead>
+    <tbody>${allSets.map(st => `<tr>
+      <td>${st.streamerNom}</td>
+      <td class="mono">${st.id}</td>
+      <td><strong>${st.config.nom}</strong></td>
+      <td>${Object.keys(st.config.boosters || {}).join(', ')}</td>
+      <td class="mono">${st.config.reward_id ? st.config.reward_id.slice(0,8) + '…' : '—'}</td>
+      <td style="text-align:right"><button class="btn danger sm" onclick="deleteSet('${st.streamerId}','${st.id}')">Supprimer</button></td>
+    </tr>`).join('')}</tbody>
+  </table>`
 }
 
 async function createSet() {
@@ -706,6 +732,15 @@ async function loadContacts() {
       </tr>`).join('')}</tbody>
     </table>`
   } catch(e) { el.innerHTML = `<div class="alert error" style="margin:16px">${e.message}</div>` }
+}
+
+async function deleteSet(streamerId, setId) {
+  if (!confirm(`Supprimer le set "${setId}" de ${streamerId} ?`)) return
+  try {
+    await api(`/api/admin/streamer/${streamerId}/set/${setId}`, { method: 'DELETE' })
+    await loadStreamers()
+    renderSetsList()
+  } catch(e) { alert(e.message) }
 }
 
 async function deleteStreamer(id) {
