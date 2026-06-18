@@ -852,6 +852,27 @@ app.post('/api/admin/streamers', adminAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }) }
 })
 
+// ── Supprimer streamer ──
+app.delete('/api/admin/streamers/:id', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params
+    // DB
+    await db.query('DELETE FROM streamers_config WHERE id = $1', [id])
+    await db.query('DELETE FROM sets_config WHERE streamer_id = $1', [id])
+    // Mémoire
+    delete streamers[id]
+    for (const [login, sid] of Object.entries(twitchToStreamer)) {
+      if (sid === id) delete twitchToStreamer[login]
+    }
+    // Filesystem (best effort)
+    try {
+      const dir = path.join('streamers', id)
+      if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true })
+    } catch(_) {}
+    res.json({ ok: true })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
 // ── Sets ──
 app.post('/api/admin/streamer/:id/sets', adminAuth, async (req, res) => {
   try {

@@ -510,13 +510,14 @@ async function loadStreamers() {
     streamersData = await api('/api/admin/streamers-full')
     if (!streamersData.length) { el.innerHTML = '<div class="empty">Aucun streamer configuré.</div>'; return }
     el.innerHTML = `<table>
-      <thead><tr><th>ID</th><th>Nom</th><th>Twitch</th><th>Sets</th><th>Couleur</th></tr></thead>
+      <thead><tr><th>ID</th><th>Nom</th><th>Twitch</th><th>Sets</th><th>Couleur</th><th></th></tr></thead>
       <tbody>${streamersData.map(s => `<tr>
         <td class="mono">${s.id}</td>
         <td><strong>${s.config.nom}</strong></td>
         <td class="mono">${s.config.twitch_login || '—'}</td>
         <td>${s.sets.length}</td>
         <td><span class="color-swatch" style="background:${s.config.couleur}"></span>${s.config.couleur}</td>
+        <td style="text-align:right"><button class="btn danger sm" onclick="deleteStreamer('${s.id}')">Supprimer</button></td>
       </tr>`).join('')}</tbody>
     </table>`
     updateStreamerSelects()
@@ -705,6 +706,14 @@ async function loadContacts() {
       </tr>`).join('')}</tbody>
     </table>`
   } catch(e) { el.innerHTML = `<div class="alert error" style="margin:16px">${e.message}</div>` }
+}
+
+async function deleteStreamer(id) {
+  if (!confirm(`Supprimer le streamer "${id}" et tous ses sets ? Cette action est irréversible.`)) return
+  try {
+    await api(`/api/admin/streamers/${id}`, { method: 'DELETE' })
+    loadStreamers()
+  } catch(e) { alert(e.message) }
 }
 
 async function deleteContact(id) {
