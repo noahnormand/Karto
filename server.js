@@ -632,19 +632,22 @@ app.post('/webhook', (req, res) => {
         })
         const appToken = (await appTokenRes.json()).access_token
 
-        if (appToken && twitchUserToken) {
-          const patchRes = await fetch(
-            `https://api.twitch.tv/helix/channel_points/custom_rewards/redemptions?broadcaster_id=${event.broadcaster_user_id}&reward_id=${rewardId}&id=${event.id}`,
-            {
-              method: 'PATCH',
-              headers: {
-                'Client-Id': TWITCH_CLIENT_ID,
-                'Authorization': `Bearer ${twitchUserToken}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ status: 'FULFILLED' })
-            }
-          )
+        const patchRedemption = async (token) => fetch(
+          `https://api.twitch.tv/helix/channel_points/custom_rewards/redemptions?broadcaster_id=${event.broadcaster_user_id}&reward_id=${rewardId}&id=${event.id}`,
+          {
+            method: 'PATCH',
+            headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'FULFILLED' })
+          }
+        )
+
+        if (twitchUserToken) {
+          let patchRes = await patchRedemption(twitchUserToken)
+          if (patchRes.status === 401) {
+            console.log('[reward] token expiré, refresh...')
+            const ok = await refreshTwitchToken()
+            if (ok) patchRes = await patchRedemption(twitchUserToken)
+          }
           if (!patchRes.ok) {
             const err = await patchRes.json().catch(() => ({}))
             console.log(`[reward] PATCH redemption: ${patchRes.status}`, err)
