@@ -1160,7 +1160,7 @@ app.post('/api/streamer-admin/eventsub', streamerAdminAuth, async (req, res) => 
       })
     })
     const data = await r.json()
-    if (!r.ok) return res.status(r.status).json(data)
+    if (!r.ok) return res.status(r.status).json({ error: data.message || data.error || 'Erreur Twitch', detail: data })
     res.json(data)
   } catch(e) { res.status(500).json({ error: e.message }) }
 })
