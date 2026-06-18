@@ -530,6 +530,10 @@ function pushSSE(viewerId, payload) {
 }
 
 
+// Déduplication des messages Twitch (évite double-traitement si Twitch renvoie le même event)
+const processedMsgIds = new Set()
+setInterval(() => { if (processedMsgIds.size > 1000) processedMsgIds.clear() }, 60 * 60 * 1000)
+
 // Webhook Twitch
 app.post('/webhook', (req, res) => {
   const msgType = req.headers['twitch-eventsub-message-type']
@@ -538,6 +542,12 @@ app.post('/webhook', (req, res) => {
   const ts      = req.headers['twitch-eventsub-message-timestamp']
 
   if (!msgId || !ts || !sig || !req.rawBody) return res.status(400).send('Bad Request')
+
+  if (processedMsgIds.has(msgId)) {
+    console.log(`[webhook] message dupliqué ignoré: ${msgId}`)
+    return res.status(200).send('ok')
+  }
+  processedMsgIds.add(msgId)
 
   const toSign  = msgId + ts + req.rawBody
   const expected = 'sha256=' + crypto.createHmac('sha256', WEBHOOK_SECRET).update(toSign).digest('hex')
