@@ -726,14 +726,14 @@ async function adminAuth(req, res, next) {
   const token = (req.headers.authorization || '').replace('Bearer ', '')
   if (!token) return res.status(401).json({ error: 'Token manquant' })
   try {
-    const r = await fetch('https://api.twitch.tv/helix/users', {
-      headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': TWITCH_CLIENT_ID }
+    // /oauth2/validate ne nécessite pas de Client-Id correspondant
+    const r = await fetch('https://id.twitch.tv/oauth2/validate', {
+      headers: { 'Authorization': `OAuth ${token}` }
     })
     if (!r.ok) return res.status(401).json({ error: 'Token invalide' })
     const data = await r.json()
-    const user = data.data[0]
-    if (!user || !ADMIN_IDS.has(user.id)) return res.status(403).json({ error: 'Accès refusé' })
-    req.adminUser  = user
+    if (!data.user_id || !ADMIN_IDS.has(data.user_id)) return res.status(403).json({ error: 'Accès refusé' })
+    req.adminUser  = { id: data.user_id, login: data.login, display_name: data.login }
     req.adminToken = token
     next()
   } catch(e) { res.status(500).json({ error: e.message }) }
