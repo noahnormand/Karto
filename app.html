@@ -1146,20 +1146,26 @@ async function recevoirPack(streamerId, setId, boosterType, viewerId) {
 }
 
 async function ouvrirPackInventaire(boosterId) {
-  if (!setActif) return
+  console.log('[ouvrirPack] boosterId=', boosterId, 'setActif=', setActif, 'user=', utilisateurConnecte?.id)
+  if (!setActif) { console.warn('[ouvrirPack] ABORT: setActif null'); return }
   const { streamerId, setId } = setActif
   const qty = packsInventaire[streamerId]?.[setId]?.[boosterId] || 0
+  console.log('[ouvrirPack] qty=', qty, 'inventaire=', JSON.stringify(packsInventaire[streamerId]?.[setId]))
   if (qty < 1) return toast('Aucun pack disponible', 'rouge')
   packsInventaire[streamerId][setId][boosterId]--
   if (utilisateurConnecte) {
+    console.log('[ouvrirPack] appel /use...')
     const r = await fetch(`/api/packs/${utilisateurConnecte.id}/use`, {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ streamerId, setId, boosterType: boosterId })
-    }).catch(e => { console.error('use pack:', e); return null })
+    }).catch(e => { console.error('[ouvrirPack] fetch erreur:', e); return null })
+    if (r) console.log('[ouvrirPack] réponse /use:', r.status)
     if (r && !r.ok) {
       const err = await r.json().catch(() => ({}))
-      console.error('use pack erreur:', err)
+      console.error('[ouvrirPack] /use erreur:', err)
     }
+  } else {
+    console.warn('[ouvrirPack] utilisateurConnecte null — /use non appelé')
   }
   const config = setData[cleSet(streamerId, setId)]?.config
   if (config) afficherBoutique(config, null)
