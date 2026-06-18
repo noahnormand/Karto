@@ -1085,6 +1085,47 @@ app.patch('/api/streamer-admin/set/:setId/config', streamerAdminAuth, async (req
   } catch(e) { res.status(500).json({ error: e.message }) }
 })
 
+// ── Streamer admin : créer un set ──
+app.post('/api/streamer-admin/sets', streamerAdminAuth, async (req, res) => {
+  try {
+    const s = streamers[req.streamerId]
+    if (!s) return res.status(404).json({ error: 'Streamer introuvable' })
+
+    const { set_id, nom, description, couleur } = req.body
+    if (!set_id || !nom) return res.status(400).json({ error: 'set_id et nom requis' })
+    if (s.sets[set_id]) return res.status(400).json({ error: 'Un set avec cet ID existe déjà' })
+
+    const config = {
+      id: set_id, nom, description: description || '', date: '', couleur: couleur || s.config.couleur,
+      boosters: {
+        single: { nom: 'Booster', cout: 500, cout_essence: 100, nb_cartes: 10, garantie: null }
+      },
+      raretes: {
+        'Commun':     { chance: 50, couleur: '#8a9bb0', essence: 5   },
+        'Peu Commun': { chance: 30, couleur: '#4caf80', essence: 10  },
+        'Rare':       { chance: 15, couleur: '#4a90d9', essence: 25  },
+        'Épique':     { chance: 4,  couleur: '#9b59b6', essence: 75  },
+        'Légendaire': { chance: 1,  couleur: '#f0a500', essence: 200 }
+      }
+    }
+
+    try {
+      const dir = path.join('streamers', req.streamerId, 'sets', set_id)
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+      fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(config, null, 2))
+      fs.writeFileSync(path.join(dir, 'cards.json'), '[]')
+    } catch(_) {}
+
+    await db.query(
+      'INSERT INTO sets_config (streamer_id, set_id, config, cards) VALUES ($1, $2, $3, $4) ON CONFLICT (streamer_id, set_id) DO UPDATE SET config = $3',
+      [req.streamerId, set_id, JSON.stringify(config), '[]']
+    )
+
+    s.sets[set_id] = { config, cards: [] }
+    res.json({ ok: true, config })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
 // ── Streamer admin : EventSub ──
 app.get('/api/streamer-admin/eventsub', streamerAdminAuth, async (req, res) => {
   try {

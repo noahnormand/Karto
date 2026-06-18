@@ -418,9 +418,37 @@
   <div id="tab-s-sets" class="tab">
     <div class="page">
       <div class="section">
+        <div class="section-head"><h2>Créer un set</h2></div>
+        <div class="section-body">
+          <div class="form-grid">
+            <div class="field">
+              <label>ID du set * <small style="font-weight:400;text-transform:none">(ex: saison1, sans espaces)</small></label>
+              <input id="ns-id" type="text" placeholder="saison1">
+            </div>
+            <div class="field">
+              <label>Nom affiché *</label>
+              <input id="ns-nom" type="text" placeholder="L'Ère de la Vapeur">
+            </div>
+            <div class="field">
+              <label>Description</label>
+              <input id="ns-desc" type="text">
+            </div>
+            <div class="field">
+              <label>Couleur</label>
+              <input id="ns-couleur" type="color" value="#6441a5">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn primary" onclick="createStreamerSet()"><span id="ns-btn-label">Créer le set</span></button>
+          </div>
+          <div id="ns-msg"></div>
+        </div>
+      </div>
+
+      <div class="section">
         <div class="section-head">
           <h2>Mes sets</h2>
-          <button class="btn sm" onclick="showStreamerApp(currentUser)">↻ Actualiser</button>
+          <button class="btn sm" onclick="refreshStreamerData()">↻ Actualiser</button>
         </div>
         <div id="s-sets-list"><div class="empty">Chargement…</div></div>
       </div>
@@ -1068,12 +1096,41 @@ function renderChecklist(webhookOk) {
 
   el.innerHTML =
     item(webhookOk, 'Activer le webhook Twitch', 'Fais-le dans l\'onglet Installation ci-dessus') +
-    item(hasSets,   'Créer au moins un set', 'Contacte l\'admin pour créer un set') +
+    item(hasSets,   'Créer au moins un set', 'Va dans "Mes Sets" et crée ton premier set') +
     item(hasCards,  'Ajouter des cartes à un set', 'Va dans "Mes Cartes"') +
     item(hasReward, 'Lier une récompense Twitch à un set', 'Va dans "Récompenses", charge tes rewards et lie-en une') +
     `<div style="padding:12px 0;font-size:13px;color:${webhookOk&&hasSets&&hasCards&&hasReward?'var(--green)':'var(--gray)'}">
       ${webhookOk&&hasSets&&hasCards&&hasReward ? '🎉 Tout est prêt ! Tes viewers peuvent maintenant acheter des boosters.' : 'Complète les étapes ci-dessus pour mettre ton Karto en ligne.'}
     </div>`
+}
+
+async function refreshStreamerData() {
+  try {
+    streamerData = await api('/api/streamer-admin/me')
+    renderStreamerSets()
+    populateStreamerSetSelects()
+    renderChecklist(document.querySelector('#s-eventsub-status .tag.green') !== null)
+  } catch(e) { alert(e.message) }
+}
+
+async function createStreamerSet() {
+  const set_id      = document.getElementById('ns-id').value.trim().replace(/[^a-z0-9_]/gi, '_').toLowerCase()
+  const nom         = document.getElementById('ns-nom').value.trim()
+  const description = document.getElementById('ns-desc').value.trim()
+  const couleur     = document.getElementById('ns-couleur').value
+  if (!set_id || !nom) return showMsg('ns-msg', 'error', 'ID et nom sont requis')
+  const lbl = document.getElementById('ns-btn-label')
+  lbl.innerHTML = '<span class="spinner"></span>'
+  try {
+    await api('/api/streamer-admin/sets', { method: 'POST', body: { set_id, nom, description, couleur } })
+    showMsg('ns-msg', 'success', `✓ Set <strong>${nom}</strong> créé`)
+    document.getElementById('ns-id').value  = ''
+    document.getElementById('ns-nom').value = ''
+    document.getElementById('ns-desc').value = ''
+    await refreshStreamerData()
+    loadStreamerEventsub() // refresh checklist
+  } catch(e) { showMsg('ns-msg', 'error', e.message) }
+  finally { lbl.textContent = 'Créer le set' }
 }
 
 function switchStreamerTab(name, btn) {
@@ -1086,7 +1143,7 @@ function switchStreamerTab(name, btn) {
 function renderStreamerSets() {
   const el = document.getElementById('s-sets-list')
   if (!streamerData?.sets?.length) {
-    el.innerHTML = '<div class="empty">Aucun set configuré. Contacte l\'administrateur pour en créer un.</div>'
+    el.innerHTML = '<div class="empty">Aucun set. Crée-en un ci-dessus.</div>'
     return
   }
   el.innerHTML = `<table>
