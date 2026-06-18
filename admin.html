@@ -341,9 +341,10 @@
             </div>
             <div class="field">
               <label>Set</label>
-              <select id="r-set"></select>
+              <select id="r-set" onchange="renderRewardStatus()"></select>
             </div>
           </div>
+          <div id="r-current"></div>
           <div class="form-actions">
             <button class="btn" onclick="loadRewards()">Charger les récompenses Twitch</button>
           </div>
@@ -679,6 +680,24 @@ function loadSetsForReward() {
   const sel = document.getElementById('r-set')
   if (!sel || !s) return
   sel.innerHTML = s.sets.map(st => `<option value="${st.id}">${st.config.nom} — ${st.config.reward_id ? '✓ lié' : 'non lié'}</option>`).join('')
+  renderRewardStatus()
+}
+
+function renderRewardStatus() {
+  const streamerId = document.getElementById('r-streamer')?.value
+  const setId      = document.getElementById('r-set')?.value
+  const s   = streamersData.find(s => s.id === streamerId)
+  const set = s?.sets.find(st => st.id === setId)
+  const el  = document.getElementById('r-current')
+  if (!el || !set) return
+  if (set.config.reward_id) {
+    el.innerHTML = `<div class="alert info" style="margin-top:0;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between">
+      <span>Reward lié : <code style="font-family:monospace">${set.config.reward_id}</code></span>
+      <button class="btn danger sm" onclick="unlinkReward('${streamerId}','${setId}')">Délier</button>
+    </div>`
+  } else {
+    el.innerHTML = ''
+  }
 }
 
 async function loadRewards() {
@@ -701,6 +720,16 @@ async function loadRewards() {
       </tr>`).join('')}</tbody>
     </table>`
   } catch(e) { el.innerHTML = `<div class="alert error">${e.message}</div>` }
+}
+
+async function unlinkReward(streamerId, setId) {
+  if (!confirm('Délier la récompense de ce set ?')) return
+  try {
+    await api(`/api/admin/streamer/${streamerId}/set/${setId}/config`, { method: 'PATCH', body: { reward_id: null } })
+    showMsg('r-msg', 'success', '✓ Récompense déliée')
+    await loadStreamers()
+    loadSetsForReward()
+  } catch(e) { showMsg('r-msg', 'error', e.message) }
 }
 
 async function linkReward(streamerId, setId, rewardId) {
