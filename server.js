@@ -171,6 +171,12 @@ async function initDB() {
       PRIMARY KEY (streamer_id, set_id)
     )
   `)
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS streamer_admins (
+      streamer_id TEXT NOT NULL,
+      twitch_id   TEXT PRIMARY KEY
+    )
+  `)
   console.log('db ok')
 }
 
@@ -739,6 +745,22 @@ async function adminAuth(req, res, next) {
   } catch(e) { res.status(500).json({ error: e.message }) }
 }
 
+async function streamerAdminAuth(req, res, next) {
+  const token = (req.headers.authorization || '').replace('Bearer ', '')
+  if (!token) return res.status(401).json({ error: 'Token manquant' })
+  try {
+    const r = await fetch('https://id.twitch.tv/oauth2/validate', {
+      headers: { 'Authorization': `OAuth ${token}` }
+    })
+    if (!r.ok) return res.status(401).json({ error: 'Token invalide' })
+    const data = await r.json()
+    const { rows } = await db.query('SELECT streamer_id FROM streamer_admins WHERE twitch_id = $1', [data.user_id])
+    if (!rows[0]) return res.status(403).json({ error: 'Accès refusé' })
+    req.streamerId = rows[0].streamer_id
+    next()
+  } catch(e) { res.status(500).json({ error: e.message }) }
+}
+
 async function appToken() {
   const r = await fetch('https://id.twitch.tv/oauth2/token', {
     method: 'POST',
@@ -747,6 +769,23 @@ async function appToken() {
   })
   return (await r.json()).access_token
 }
+
+// ── Rôle utilisateur (pas d'auth stricte — retourne le rôle selon le token) ──
+app.get('/api/me/role', async (req, res) => {
+  const token = (req.headers.authorization || '').replace('Bearer ', '')
+  if (!token) return res.json({ isAdmin: false, streamerId: null, user: null })
+  try {
+    const r = await fetch('https://id.twitch.tv/oauth2/validate', {
+      headers: { 'Authorization': `OAuth ${token}` }
+    })
+    if (!r.ok) return res.json({ isAdmin: false, streamerId: null, user: null })
+    const data = await r.json()
+    const isAdmin = ADMIN_IDS.has(data.user_id)
+    const { rows } = await db.query('SELECT streamer_id FROM streamer_admins WHERE twitch_id = $1', [data.user_id])
+    const streamerId = rows[0]?.streamer_id || null
+    res.json({ isAdmin, streamerId, user: { id: data.user_id, login: data.login } })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
 
 // Vérifier si l'utilisateur est admin
 app.get('/api/admin/check', adminAuth, (req, res) => {
@@ -959,6 +998,90 @@ app.get('/api/admin/streamer/:id/rewards', adminAuth, async (req, res) => {
       headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchUserToken}` }
     })
     res.json(await r.json())
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── Approuver une candidature ──
+app.post('/api/admin/approve/:contactId', adminAuth, async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT * FROM contact_requests WHERE id = $1', [req.params.contactId])
+    if (!rows[0]) return res.status(404).json({ error: 'Candidature introuvable' })
+    const contact = rows[0]
+
+    const tok = await appToken()
+    const userRes = await fetch(`https://api.twitch.tv/helix/users?login=${contact.twitch}`, {
+      headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${tok}` }
+    })
+    const twitchUser = (await userRes.json()).data?.[0]
+    if (!twitchUser) return res.status(404).json({ error: 'Streamer Twitch introuvable' })
+
+    const id = contact.twitch.toLowerCase().replace(/[^a-z0-9_]/g, '')
+    const config = {
+      id, nom: twitchUser.display_name,
+      couleur: '#6441a5', couleur2: '#4b2d83',
+      description: contact.message || '',
+      twitch_login: contact.twitch.toLowerCase(),
+      twitch_id: twitchUser.id,
+      avatar: twitchUser.profile_image_url
+    }
+
+    try {
+      const dir = path.join('streamers', id)
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+      fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(config, null, 2))
+    } catch(_) {}
+
+    await db.query(
+      'INSERT INTO streamers_config (id, config) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET config = $2',
+      [id, JSON.stringify(config)]
+    )
+    if (!streamers[id]) streamers[id] = { config, sets: {} }
+    else streamers[id].config = config
+    twitchToStreamer[config.twitch_login] = id
+
+    await db.query(
+      'INSERT INTO streamer_admins (streamer_id, twitch_id) VALUES ($1, $2) ON CONFLICT (twitch_id) DO UPDATE SET streamer_id = $1',
+      [id, twitchUser.id]
+    )
+
+    console.log(`Candidature approuvée: ${contact.twitch} → streamer ID: ${id}`)
+    res.json({ ok: true, id, config })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── Streamer admin : données propres ──
+app.get('/api/streamer-admin/me', streamerAdminAuth, (req, res) => {
+  const s = streamers[req.streamerId]
+  if (!s) return res.status(404).json({ error: 'Streamer introuvable' })
+  res.json({
+    id: req.streamerId,
+    config: s.config,
+    sets: Object.entries(s.sets).map(([setId, { config: sc, cards }]) => ({
+      id: setId, config: sc, nb_cartes: cards.length
+    }))
+  })
+})
+
+// ── Streamer admin : modifier config d'un set ──
+app.patch('/api/streamer-admin/set/:setId/config', streamerAdminAuth, async (req, res) => {
+  try {
+    const { setId } = req.params
+    const s = streamers[req.streamerId]
+    const set = s?.sets[setId]
+    if (!set) return res.status(404).json({ error: 'Set introuvable' })
+
+    Object.assign(set.config, req.body)
+
+    try {
+      const cfgPath = path.join('streamers', req.streamerId, 'sets', setId, 'config.json')
+      if (fs.existsSync(cfgPath)) fs.writeFileSync(cfgPath, JSON.stringify(set.config, null, 2))
+    } catch(_) {}
+
+    await db.query(
+      'INSERT INTO sets_config (streamer_id, set_id, config, cards) VALUES ($1, $2, $3, $4) ON CONFLICT (streamer_id, set_id) DO UPDATE SET config = $3',
+      [req.streamerId, setId, JSON.stringify(set.config), JSON.stringify(set.cards || [])]
+    )
+    res.json({ ok: true, config: set.config })
   } catch(e) { res.status(500).json({ error: e.message }) }
 })
 

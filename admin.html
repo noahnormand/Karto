@@ -364,6 +364,74 @@
           <button class="btn sm" onclick="loadContacts()">↻ Actualiser</button>
         </div>
         <div id="contacts-list"><div class="empty">Chargement…</div></div>
+        <div style="padding:0 24px 24px"><div id="contacts-msg"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Streamer Dashboard ── -->
+<div id="streamer-app" style="display:none; padding-top:60px">
+  <nav>
+    <div class="nav-logo">Karto <span>Studio</span></div>
+    <div class="nav-right">
+      <span class="nav-user" id="streamer-user-name"></span>
+      <button class="btn sm" onclick="deconnexion()">Déconnexion</button>
+    </div>
+  </nav>
+
+  <div class="tab-bar" id="streamer-tab-bar">
+    <button class="tab-btn active" onclick="switchStreamerTab('s-sets',this)">Mes Sets</button>
+    <button class="tab-btn" onclick="switchStreamerTab('s-recompenses',this)">Récompenses</button>
+  </div>
+
+  <!-- Sets -->
+  <div id="tab-s-sets" class="tab active">
+    <div class="page">
+      <div class="section">
+        <div class="section-head">
+          <h2>Mes sets</h2>
+          <button class="btn sm" onclick="showStreamerApp(currentUser)">↻ Actualiser</button>
+        </div>
+        <div id="s-sets-list"><div class="empty">Chargement…</div></div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h2>Configurer les boosters</h2></div>
+        <div class="section-body">
+          <div class="alert info" style="margin-top:0;margin-bottom:16px">Modifie le coût en points de chaîne de chaque booster.</div>
+          <div class="form-grid" style="grid-template-columns:1fr;margin-bottom:0">
+            <div class="field">
+              <label>Set</label>
+              <select id="sb-set" onchange="renderStreamerBoostEditor()"></select>
+            </div>
+          </div>
+          <div id="sb-editor" style="margin-top:16px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Récompenses -->
+  <div id="tab-s-recompenses" class="tab">
+    <div class="page">
+      <div class="section">
+        <div class="section-head"><h2>Lier une récompense Twitch</h2></div>
+        <div class="section-body">
+          <div class="alert info" style="margin-top:0;margin-bottom:16px">Tes récompenses sont chargées directement depuis ton compte Twitch (pas de token serveur requis).</div>
+          <div class="form-grid" style="grid-template-columns:1fr;margin-bottom:16px">
+            <div class="field">
+              <label>Set</label>
+              <select id="sr-set" onchange="renderStreamerRewardStatus()"></select>
+            </div>
+          </div>
+          <div id="sr-current"></div>
+          <div class="form-actions">
+            <button class="btn" onclick="loadStreamerRewards()">Charger mes récompenses Twitch</button>
+          </div>
+          <div id="sr-msg"></div>
+          <div id="sr-rewards-list" style="margin-top:16px"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -374,6 +442,7 @@ const TWITCH_CLIENT_ID = 'w7avkje8ceeuerq3wouq6dh39msysm'
 let token = null
 let currentUser = null
 let streamersData = []
+let streamerData = null // pour le dashboard streamer
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -383,7 +452,7 @@ function connexionTwitch() {
   url.searchParams.set('client_id',     TWITCH_CLIENT_ID)
   url.searchParams.set('redirect_uri',  window.location.origin + '/app')
   url.searchParams.set('response_type', 'token')
-  url.searchParams.set('scope',         'user:read:email')
+  url.searchParams.set('scope',         'user:read:email channel:read:redemptions channel:manage:redemptions')
   url.searchParams.set('force_verify',  'false')
   window.location.href = url.toString()
 }
@@ -391,8 +460,9 @@ function connexionTwitch() {
 function deconnexion() {
   localStorage.removeItem('twitch_token')
   localStorage.removeItem('twitch_user')
-  token = null; currentUser = null
+  token = null; currentUser = null; streamerData = null
   document.getElementById('app').classList.remove('visible')
+  document.getElementById('streamer-app').style.display = 'none'
   document.getElementById('login').style.display = 'flex'
 }
 
@@ -409,13 +479,19 @@ async function init() {
   if (!token) return
 
   try {
-    const r = await api('/api/admin/check')
-    if (r.ok) { currentUser = r.user; showApp() }
-    else throw new Error(r.error || 'Accès refusé')
+    const r = await api('/api/me/role')
+    currentUser = r.user
+    if (r.isAdmin) {
+      showApp()
+    } else if (r.streamerId) {
+      await showStreamerApp(r.user)
+    } else {
+      throw Object.assign(new Error('Accès refusé'), { status: 403 })
+    }
   } catch(e) {
     const s = e.message || ''
     document.getElementById('loginError').textContent =
-      s.includes('403') || s.includes('refusé') ? '⛔ Ton compte n\'est pas admin.' : '⚠ ' + s
+      s.includes('403') || s.includes('refusé') ? '⛔ Ton compte n\'est pas autorisé.' : '⚠ ' + s
     token = null
     localStorage.removeItem('twitch_token')
   }
@@ -757,7 +833,12 @@ async function loadContacts() {
         <td>${r.email}</td>
         <td>${r.tcg_url ? `<a href="${r.tcg_url}" target="_blank" style="color:var(--purple);text-decoration:underline">Voir →</a>` : '—'}</td>
         <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.message || '—'}</td>
-        <td style="text-align:right"><button class="btn danger sm" onclick="deleteContact(${r.id})">Supprimer</button></td>
+        <td style="text-align:right">
+          <div style="display:flex;gap:6px;justify-content:flex-end">
+            <button class="btn sm primary" onclick="approuverCandidature(${r.id}, '${r.twitch}')">Approuver</button>
+            <button class="btn danger sm" onclick="deleteContact(${r.id})">Supprimer</button>
+          </div>
+        </td>
       </tr>`).join('')}</tbody>
     </table>`
   } catch(e) { el.innerHTML = `<div class="alert error" style="margin:16px">${e.message}</div>` }
@@ -784,6 +865,168 @@ async function deleteContact(id) {
   if (!confirm('Supprimer cette candidature ?')) return
   try { await api(`/api/admin/contacts/${id}`, { method: 'DELETE' }); loadContacts() }
   catch(e) { alert(e.message) }
+}
+
+async function approuverCandidature(contactId, twitch) {
+  if (!confirm(`Approuver @${twitch} ? Un compte streamer sera créé et la personne pourra se connecter à /admin.`)) return
+  try {
+    const data = await api(`/api/admin/approve/${contactId}`, { method: 'POST' })
+    showMsg('contacts-msg', 'success', `✓ <strong>${data.config.nom}</strong> approuvé — ID streamer : ${data.id}`)
+    loadContacts()
+    loadStreamers()
+  } catch(e) { showMsg('contacts-msg', 'error', e.message) }
+}
+
+// ── Streamer Dashboard ────────────────────────────────────────────────────────
+
+async function showStreamerApp(user) {
+  document.getElementById('login').style.display = 'none'
+  document.getElementById('streamer-app').style.display = 'block'
+  document.getElementById('streamer-user-name').textContent = user.login
+  try {
+    streamerData = await api('/api/streamer-admin/me')
+    renderStreamerSets()
+    populateStreamerSetSelects()
+  } catch(e) {
+    document.getElementById('s-sets-list').innerHTML = `<div class="alert error" style="margin:16px">${e.message}</div>`
+  }
+}
+
+function switchStreamerTab(name, btn) {
+  document.querySelectorAll('#streamer-app .tab').forEach(t => t.classList.remove('active'))
+  document.querySelectorAll('#streamer-tab-bar .tab-btn').forEach(b => b.classList.remove('active'))
+  document.getElementById('tab-' + name).classList.add('active')
+  btn.classList.add('active')
+}
+
+function renderStreamerSets() {
+  const el = document.getElementById('s-sets-list')
+  if (!streamerData?.sets?.length) {
+    el.innerHTML = '<div class="empty">Aucun set configuré. Contacte l\'administrateur pour en créer un.</div>'
+    return
+  }
+  el.innerHTML = `<table>
+    <thead><tr><th>ID</th><th>Nom</th><th>Boosters</th><th>Reward</th><th>Cartes</th></tr></thead>
+    <tbody>${streamerData.sets.map(st => `<tr>
+      <td class="mono">${st.id}</td>
+      <td><strong>${st.config.nom}</strong></td>
+      <td>${Object.keys(st.config.boosters || {}).join(', ')}</td>
+      <td>${st.config.reward_id ? '<span class="tag green">Lié</span>' : '<span class="tag yellow">Non lié</span>'}</td>
+      <td>${st.nb_cartes}</td>
+    </tr>`).join('')}</tbody>
+  </table>`
+}
+
+function populateStreamerSetSelects() {
+  if (!streamerData?.sets) return
+  const opts = streamerData.sets.map(st => `<option value="${st.id}">${st.config.nom}</option>`).join('')
+  const sbSet = document.getElementById('sb-set')
+  const srSet = document.getElementById('sr-set')
+  if (sbSet) { sbSet.innerHTML = opts; renderStreamerBoostEditor() }
+  if (srSet) { srSet.innerHTML = opts; renderStreamerRewardStatus() }
+}
+
+function renderStreamerBoostEditor() {
+  const setId = document.getElementById('sb-set')?.value
+  const set = streamerData?.sets?.find(s => s.id === setId)
+  const el = document.getElementById('sb-editor')
+  if (!set || !el) return
+  const boosters = set.config.boosters || {}
+  if (!Object.keys(boosters).length) { el.innerHTML = '<div class="empty">Aucun booster configuré.</div>'; return }
+  el.innerHTML = `<table>
+    <thead><tr><th>ID</th><th>Nom</th><th>Coût (points)</th><th>Nb cartes</th><th>Garantie</th></tr></thead>
+    <tbody>${Object.entries(boosters).map(([bk, bc]) => `<tr>
+      <td class="mono">${bk}</td>
+      <td><input type="text" value="${bc.nom}" id="sb-nom-${bk}" style="width:130px"></td>
+      <td><input type="number" value="${bc.cout}" id="sb-cout-${bk}" style="width:90px"></td>
+      <td><input type="number" value="${bc.nb_cartes}" id="sb-nb-${bk}" style="width:70px"></td>
+      <td><select id="sb-gar-${bk}" style="width:120px">
+        <option value="">Aucune</option>
+        ${['Commun','Peu Commun','Rare','Épique','Légendaire'].map(r => `<option value="${r}" ${bc.garantie===r?'selected':''}>${r}</option>`).join('')}
+      </select></td>
+    </tr>`).join('')}</tbody>
+  </table>
+  <div class="form-actions" style="margin-top:14px">
+    <button class="btn primary" onclick="saveStreamerBoosterConfig('${setId}')">Enregistrer</button>
+  </div>
+  <div id="sb-msg"></div>`
+}
+
+async function saveStreamerBoosterConfig(setId) {
+  const set = streamerData?.sets?.find(s => s.id === setId)
+  if (!set) return
+  const boosters = {}
+  for (const bk of Object.keys(set.config.boosters || {})) {
+    boosters[bk] = { ...set.config.boosters[bk],
+      nom:       document.getElementById(`sb-nom-${bk}`)?.value || set.config.boosters[bk].nom,
+      cout:      parseInt(document.getElementById(`sb-cout-${bk}`)?.value) || set.config.boosters[bk].cout,
+      nb_cartes: parseInt(document.getElementById(`sb-nb-${bk}`)?.value)  || set.config.boosters[bk].nb_cartes,
+      garantie:  document.getElementById(`sb-gar-${bk}`)?.value || null
+    }
+  }
+  try {
+    await api(`/api/streamer-admin/set/${setId}/config`, { method: 'PATCH', body: { boosters } })
+    showMsg('sb-msg', 'success', '✓ Boosters enregistrés')
+    set.config.boosters = boosters
+  } catch(e) { showMsg('sb-msg', 'error', e.message) }
+}
+
+function renderStreamerRewardStatus() {
+  const setId = document.getElementById('sr-set')?.value
+  const set = streamerData?.sets?.find(s => s.id === setId)
+  const el = document.getElementById('sr-current')
+  if (!el || !set) return
+  if (set.config.reward_id) {
+    el.innerHTML = `<div class="alert info" style="margin-top:0;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between">
+      <span>Reward lié : <code style="font-family:monospace">${set.config.reward_id}</code></span>
+      <button class="btn danger sm" onclick="unlinkStreamerReward('${setId}')">Délier</button>
+    </div>`
+  } else {
+    el.innerHTML = ''
+  }
+}
+
+async function loadStreamerRewards() {
+  const el = document.getElementById('sr-rewards-list')
+  el.innerHTML = '<div class="empty">Chargement…</div>'
+  try {
+    const r = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${streamerData.config.twitch_id}`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': TWITCH_CLIENT_ID }
+    })
+    const data = await r.json()
+    if (!r.ok) throw new Error(data.message || `Erreur ${r.status} — vérifie que tu es bien connecté avec ton compte Twitch de streamer`)
+    const rewards = data.data || []
+    if (!rewards.length) { el.innerHTML = '<div class="empty">Aucune récompense trouvée sur ta chaîne.</div>'; return }
+    const setId = document.getElementById('sr-set').value
+    el.innerHTML = `<table>
+      <thead><tr><th>Titre</th><th>Coût</th><th>ID</th><th></th></tr></thead>
+      <tbody>${rewards.map(rw => `<tr>
+        <td><strong>${rw.title}</strong></td>
+        <td>${rw.cost.toLocaleString('fr')} pts</td>
+        <td class="mono">${rw.id}</td>
+        <td style="text-align:right"><button class="btn sm primary" onclick="linkStreamerReward('${setId}','${rw.id}')">Lier à ce set</button></td>
+      </tr>`).join('')}</tbody>
+    </table>`
+  } catch(e) { el.innerHTML = `<div class="alert error">${e.message}</div>` }
+}
+
+async function linkStreamerReward(setId, rewardId) {
+  try {
+    await api(`/api/streamer-admin/set/${setId}/config`, { method: 'PATCH', body: { reward_id: rewardId } })
+    showMsg('sr-msg', 'success', `✓ Récompense liée au set ${setId}`)
+    const set = streamerData.sets.find(s => s.id === setId)
+    if (set) { set.config.reward_id = rewardId; renderStreamerRewardStatus(); renderStreamerSets() }
+  } catch(e) { showMsg('sr-msg', 'error', e.message) }
+}
+
+async function unlinkStreamerReward(setId) {
+  if (!confirm('Délier la récompense de ce set ?')) return
+  try {
+    await api(`/api/streamer-admin/set/${setId}/config`, { method: 'PATCH', body: { reward_id: null } })
+    showMsg('sr-msg', 'success', '✓ Récompense déliée')
+    const set = streamerData.sets.find(s => s.id === setId)
+    if (set) { set.config.reward_id = null; renderStreamerRewardStatus(); renderStreamerSets() }
+  } catch(e) { showMsg('sr-msg', 'error', e.message) }
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
