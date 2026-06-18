@@ -280,9 +280,12 @@ let streamersData = []
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 function connexionTwitch() {
+  // On passe par la page principale (karto.live) qui gère le callback OAuth
+  // Après login, elle redirige ici grâce au sessionStorage
+  sessionStorage.setItem('redirectAfterLogin', '/admin')
   const url = new URL('https://id.twitch.tv/oauth2/authorize')
   url.searchParams.set('client_id',     TWITCH_CLIENT_ID)
-  url.searchParams.set('redirect_uri',  window.location.origin + window.location.pathname)
+  url.searchParams.set('redirect_uri',  window.location.origin)
   url.searchParams.set('response_type', 'token')
   url.searchParams.set('scope',         'user:read:email')
   url.searchParams.set('force_verify',  'false')

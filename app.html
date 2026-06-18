@@ -559,6 +559,8 @@ async function chargerUtilisateur(token) {
     }).then(r => r.json())
     utilisateurConnecte = data.data[0]
     localStorage.setItem('twitch_user', JSON.stringify(utilisateurConnecte))
+    const redirect = sessionStorage.getItem('redirectAfterLogin')
+    if (redirect) { sessionStorage.removeItem('redirectAfterLogin'); window.location.href = redirect; return }
     basculerEtat(true)
     connecterSSE()
     toast('Connecté en tant que ' + utilisateurConnecte.display_name)
