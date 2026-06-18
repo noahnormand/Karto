@@ -1129,16 +1129,11 @@ function afficherCollectionsGuest() {
   })
 }
 
-async function recevoirPack(streamerId, setId, boosterType, viewerId) {
+function recevoirPack(streamerId, setId, boosterType) {
+  // Le webhook a déjà ajouté le pack en DB — on met juste à jour le state local
   if (!packsInventaire[streamerId]) packsInventaire[streamerId] = {}
   if (!packsInventaire[streamerId][setId]) packsInventaire[streamerId][setId] = {}
   packsInventaire[streamerId][setId][boosterType] = (packsInventaire[streamerId][setId][boosterType] || 0) + 1
-  if (viewerId || utilisateurConnecte?.id) {
-    await fetch(`/api/packs/${viewerId || utilisateurConnecte.id}/add`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ streamerId, setId, boosterType })
-    }).catch(() => {})
-  }
   if (setActif?.streamerId === streamerId && setActif?.setId === setId) {
     const config = setData[cleSet(streamerId, setId)]?.config
     if (config) afficherBoutique(config, null)
