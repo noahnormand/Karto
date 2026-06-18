@@ -4,7 +4,7 @@ Karto permet aux viewers Twitch d'ouvrir des boosters virtuels de cartes à coll
 
 Chaque streamer partenaire a son propre univers - ses cartes, ses personnages, ses raretés. Un viewer accumule des points sur Twitch, rachète une récompense, et reçoit un booster à ouvrir sur le site quand il veut.
 
-**karto-182e.onrender.com**
+**[karto.live](https://karto.live)**
 
 ---
 
