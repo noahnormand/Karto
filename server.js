@@ -1085,6 +1085,86 @@ app.patch('/api/streamer-admin/set/:setId/config', streamerAdminAuth, async (req
   } catch(e) { res.status(500).json({ error: e.message }) }
 })
 
+// ── Streamer admin : cartes ──
+app.get('/api/streamer-admin/set/:setId/cards', streamerAdminAuth, (req, res) => {
+  const set = streamers[req.streamerId]?.sets[req.params.setId]
+  if (!set) return res.status(404).json({ error: 'Set introuvable' })
+  res.json(set.cards || [])
+})
+
+app.post('/api/streamer-admin/set/:setId/cards', streamerAdminAuth, async (req, res) => {
+  try {
+    const { setId } = req.params
+    const set = streamers[req.streamerId]?.sets[setId]
+    if (!set) return res.status(404).json({ error: 'Set introuvable' })
+
+    const { nom, rarete, image } = req.body
+    if (!nom || !rarete) return res.status(400).json({ error: 'nom et rarete requis' })
+
+    const cardId = nom.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '_') + '_' + Date.now()
+    const card = { id: cardId, nom: nom.trim(), rarete, image: image?.trim() || '' }
+
+    set.cards.push(card)
+
+    try {
+      fs.writeFileSync(path.join('streamers', req.streamerId, 'sets', setId, 'cards.json'), JSON.stringify(set.cards, null, 2))
+    } catch(_) {}
+
+    await db.query(
+      'INSERT INTO sets_config (streamer_id, set_id, config, cards) VALUES ($1, $2, $3, $4) ON CONFLICT (streamer_id, set_id) DO UPDATE SET cards = $4',
+      [req.streamerId, setId, JSON.stringify(set.config), JSON.stringify(set.cards)]
+    )
+    res.json({ ok: true, card })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+app.patch('/api/streamer-admin/set/:setId/card/:cardId', streamerAdminAuth, async (req, res) => {
+  try {
+    const { setId, cardId } = req.params
+    const set = streamers[req.streamerId]?.sets[setId]
+    if (!set) return res.status(404).json({ error: 'Set introuvable' })
+    const card = set.cards.find(c => c.id === cardId)
+    if (!card) return res.status(404).json({ error: 'Carte introuvable' })
+
+    const { nom, rarete, image } = req.body
+    if (nom)   card.nom   = nom.trim()
+    if (rarete) card.rarete = rarete
+    if (image !== undefined) card.image = image.trim()
+
+    try {
+      fs.writeFileSync(path.join('streamers', req.streamerId, 'sets', setId, 'cards.json'), JSON.stringify(set.cards, null, 2))
+    } catch(_) {}
+
+    await db.query(
+      'INSERT INTO sets_config (streamer_id, set_id, config, cards) VALUES ($1, $2, $3, $4) ON CONFLICT (streamer_id, set_id) DO UPDATE SET cards = $4',
+      [req.streamerId, setId, JSON.stringify(set.config), JSON.stringify(set.cards)]
+    )
+    res.json({ ok: true, card })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+app.delete('/api/streamer-admin/set/:setId/card/:cardId', streamerAdminAuth, async (req, res) => {
+  try {
+    const { setId, cardId } = req.params
+    const set = streamers[req.streamerId]?.sets[setId]
+    if (!set) return res.status(404).json({ error: 'Set introuvable' })
+    const idx = set.cards.findIndex(c => c.id === cardId)
+    if (idx === -1) return res.status(404).json({ error: 'Carte introuvable' })
+
+    set.cards.splice(idx, 1)
+
+    try {
+      fs.writeFileSync(path.join('streamers', req.streamerId, 'sets', setId, 'cards.json'), JSON.stringify(set.cards, null, 2))
+    } catch(_) {}
+
+    await db.query(
+      'INSERT INTO sets_config (streamer_id, set_id, config, cards) VALUES ($1, $2, $3, $4) ON CONFLICT (streamer_id, set_id) DO UPDATE SET cards = $4',
+      [req.streamerId, setId, JSON.stringify(set.config), JSON.stringify(set.cards)]
+    )
+    res.json({ ok: true })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
 // ── Candidatures ──
 app.get('/api/admin/contacts', adminAuth, async (req, res) => {
   try {

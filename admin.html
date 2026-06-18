@@ -382,6 +382,7 @@
 
   <div class="tab-bar" id="streamer-tab-bar">
     <button class="tab-btn active" onclick="switchStreamerTab('s-sets',this)">Mes Sets</button>
+    <button class="tab-btn" onclick="switchStreamerTab('s-cartes',this)">Mes Cartes</button>
     <button class="tab-btn" onclick="switchStreamerTab('s-recompenses',this)">Récompenses</button>
   </div>
 
@@ -407,6 +408,84 @@
             </div>
           </div>
           <div id="sb-editor" style="margin-top:16px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cartes -->
+  <div id="tab-s-cartes" class="tab">
+    <div class="page">
+      <div class="section">
+        <div class="section-head">
+          <h2>Cartes du set</h2>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="cartes-set" onchange="loadCartes()" style="padding:6px 10px;border:1px solid var(--black);background:var(--bg);font-family:Inter,sans-serif;font-size:12px"></select>
+            <button class="btn sm" onclick="loadCartes()">↻ Actualiser</button>
+          </div>
+        </div>
+        <div id="cartes-list"><div class="empty">Sélectionne un set.</div></div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h2>Ajouter une carte</h2></div>
+        <div class="section-body">
+          <div class="form-grid">
+            <div class="field">
+              <label>Nom *</label>
+              <input id="c-nom" type="text" placeholder="ex: Ingénieur des Brumes">
+            </div>
+            <div class="field">
+              <label>Rarété *</label>
+              <select id="c-rarete">
+                <option value="Commun">Commun</option>
+                <option value="Peu Commun">Peu Commun</option>
+                <option value="Rare">Rare</option>
+                <option value="Épique">Épique</option>
+                <option value="Légendaire">Légendaire</option>
+              </select>
+            </div>
+            <div class="field" style="grid-column:span 2">
+              <label>URL de l'image</label>
+              <input id="c-image" type="text" placeholder="https://...">
+            </div>
+          </div>
+          <div id="c-preview" style="margin-bottom:16px"></div>
+          <div class="form-actions">
+            <button class="btn primary" onclick="addCarte()"><span id="c-btn-label">Ajouter la carte</span></button>
+          </div>
+          <div id="c-msg"></div>
+        </div>
+      </div>
+
+      <div class="section" id="edit-carte-section" style="display:none">
+        <div class="section-head"><h2>Modifier une carte</h2><button class="btn sm" onclick="cancelEditCarte()">Annuler</button></div>
+        <div class="section-body">
+          <input type="hidden" id="ec-id">
+          <div class="form-grid">
+            <div class="field">
+              <label>Nom</label>
+              <input id="ec-nom" type="text">
+            </div>
+            <div class="field">
+              <label>Rarété</label>
+              <select id="ec-rarete">
+                <option value="Commun">Commun</option>
+                <option value="Peu Commun">Peu Commun</option>
+                <option value="Rare">Rare</option>
+                <option value="Épique">Épique</option>
+                <option value="Légendaire">Légendaire</option>
+              </select>
+            </div>
+            <div class="field" style="grid-column:span 2">
+              <label>URL de l'image</label>
+              <input id="ec-image" type="text">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn primary" onclick="saveEditCarte()">Enregistrer</button>
+          </div>
+          <div id="ec-msg"></div>
         </div>
       </div>
     </div>
@@ -924,6 +1003,7 @@ function populateStreamerSetSelects() {
   const srSet = document.getElementById('sr-set')
   if (sbSet) { sbSet.innerHTML = opts; renderStreamerBoostEditor() }
   if (srSet) { srSet.innerHTML = opts; renderStreamerRewardStatus() }
+  populateCartesSetSelect()
 }
 
 function renderStreamerBoostEditor() {
@@ -1017,6 +1097,127 @@ async function linkStreamerReward(setId, rewardId) {
     const set = streamerData.sets.find(s => s.id === setId)
     if (set) { set.config.reward_id = rewardId; renderStreamerRewardStatus(); renderStreamerSets() }
   } catch(e) { showMsg('sr-msg', 'error', e.message) }
+}
+
+// ── Cartes ───────────────────────────────────────────────────────────────────
+
+function populateCartesSetSelect() {
+  const sel = document.getElementById('cartes-set')
+  if (!sel || !streamerData?.sets) return
+  sel.innerHTML = streamerData.sets.map(st => `<option value="${st.id}">${st.config.nom}</option>`).join('')
+}
+
+let cartesData = []
+
+async function loadCartes() {
+  const setId = document.getElementById('cartes-set')?.value
+  if (!setId) return
+  const el = document.getElementById('cartes-list')
+  el.innerHTML = '<div class="empty">Chargement…</div>'
+  try {
+    cartesData = await api(`/api/streamer-admin/set/${setId}/cards`)
+    renderCartesList(setId)
+  } catch(e) { el.innerHTML = `<div class="alert error" style="margin:16px">${e.message}</div>` }
+}
+
+const RARETE_COLORS = {
+  'Commun': '#8a9bb0', 'Peu Commun': '#4caf80', 'Rare': '#4a90d9', 'Épique': '#9b59b6', 'Légendaire': '#f0a500'
+}
+
+function renderCartesList(setId) {
+  const el = document.getElementById('cartes-list')
+  if (!cartesData.length) {
+    el.innerHTML = '<div class="empty">Aucune carte dans ce set. Ajoutes-en une ci-dessous.</div>'
+    return
+  }
+  el.innerHTML = `<table>
+    <thead><tr><th>Image</th><th>Nom</th><th>Rarété</th><th>ID</th><th></th></tr></thead>
+    <tbody>${cartesData.map(c => `<tr>
+      <td>${c.image ? `<img src="${c.image}" style="height:40px;width:30px;object-fit:cover;border:1px solid var(--border)" onerror="this.style.display='none'">` : '<span style="color:var(--gray);font-size:11px">—</span>'}</td>
+      <td><strong>${c.nom}</strong></td>
+      <td><span style="display:inline-block;padding:2px 8px;font-size:11px;font-weight:700;border:1px solid;border-color:${RARETE_COLORS[c.rarete]||'#ccc'};color:${RARETE_COLORS[c.rarete]||'#666'}">${c.rarete}</span></td>
+      <td class="mono" style="font-size:11px">${c.id}</td>
+      <td style="text-align:right">
+        <div style="display:flex;gap:6px;justify-content:flex-end">
+          <button class="btn sm" onclick="startEditCarte('${c.id}')">Modifier</button>
+          <button class="btn danger sm" onclick="deleteCarte('${setId}','${c.id}')">Supprimer</button>
+        </div>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table><div style="padding:12px 14px;font-size:12px;color:var(--gray);border-top:1px solid var(--border)">${cartesData.length} carte${cartesData.length > 1 ? 's' : ''}</div>`
+}
+
+document.getElementById('c-image')?.addEventListener('input', function() {
+  const prev = document.getElementById('c-preview')
+  if (!prev) return
+  prev.innerHTML = this.value ? `<img src="${this.value}" style="height:60px;border:1px solid var(--border)" onerror="this.style.display='none'">` : ''
+})
+
+async function addCarte() {
+  const setId = document.getElementById('cartes-set')?.value
+  const nom   = document.getElementById('c-nom').value.trim()
+  const rarete = document.getElementById('c-rarete').value
+  const image  = document.getElementById('c-image').value.trim()
+  if (!setId) return showMsg('c-msg', 'error', 'Sélectionne un set')
+  if (!nom)   return showMsg('c-msg', 'error', 'Le nom est requis')
+  const lbl = document.getElementById('c-btn-label')
+  lbl.innerHTML = '<span class="spinner"></span>'
+  try {
+    const data = await api(`/api/streamer-admin/set/${setId}/cards`, { method: 'POST', body: { nom, rarete, image } })
+    showMsg('c-msg', 'success', `✓ <strong>${nom}</strong> ajoutée (${rarete})`)
+    document.getElementById('c-nom').value   = ''
+    document.getElementById('c-image').value = ''
+    document.getElementById('c-preview').innerHTML = ''
+    await loadCartes()
+    // Update nb_cartes in streamerData
+    const s = streamerData?.sets?.find(s => s.id === setId)
+    if (s) s.nb_cartes = cartesData.length
+    renderStreamerSets()
+  } catch(e) { showMsg('c-msg', 'error', e.message) }
+  finally { lbl.textContent = 'Ajouter la carte' }
+}
+
+function startEditCarte(cardId) {
+  const card = cartesData.find(c => c.id === cardId)
+  if (!card) return
+  document.getElementById('ec-id').value    = card.id
+  document.getElementById('ec-nom').value   = card.nom
+  document.getElementById('ec-rarete').value = card.rarete
+  document.getElementById('ec-image').value  = card.image || ''
+  document.getElementById('edit-carte-section').style.display = 'block'
+  document.getElementById('edit-carte-section').scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function cancelEditCarte() {
+  document.getElementById('edit-carte-section').style.display = 'none'
+  document.getElementById('ec-msg').innerHTML = ''
+}
+
+async function saveEditCarte() {
+  const setId  = document.getElementById('cartes-set')?.value
+  const cardId = document.getElementById('ec-id').value
+  const nom    = document.getElementById('ec-nom').value.trim()
+  const rarete = document.getElementById('ec-rarete').value
+  const image  = document.getElementById('ec-image').value.trim()
+  if (!nom) return showMsg('ec-msg', 'error', 'Le nom est requis')
+  try {
+    await api(`/api/streamer-admin/set/${setId}/card/${cardId}`, { method: 'PATCH', body: { nom, rarete, image } })
+    showMsg('ec-msg', 'success', '✓ Carte modifiée')
+    cancelEditCarte()
+    loadCartes()
+  } catch(e) { showMsg('ec-msg', 'error', e.message) }
+}
+
+async function deleteCarte(setId, cardId) {
+  const card = cartesData.find(c => c.id === cardId)
+  if (!confirm(`Supprimer la carte "${card?.nom || cardId}" ?`)) return
+  try {
+    await api(`/api/streamer-admin/set/${setId}/card/${cardId}`, { method: 'DELETE' })
+    await loadCartes()
+    const s = streamerData?.sets?.find(s => s.id === setId)
+    if (s) s.nb_cartes = cartesData.length
+    renderStreamerSets()
+  } catch(e) { alert(e.message) }
 }
 
 async function unlinkStreamerReward(setId) {
