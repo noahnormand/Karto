@@ -936,6 +936,13 @@ app.get('/api/admin/contacts', adminAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }) }
 })
 
+app.delete('/api/admin/contacts/:id', adminAuth, async (req, res) => {
+  try {
+    await db.query('DELETE FROM contact_requests WHERE id = $1', [req.params.id])
+    res.json({ ok: true })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
 // ── Pages ──
 app.get('/app',   (_req, res) => res.sendFile(path.resolve('app.html')))
 app.get('/admin', (_req, res) => res.sendFile(path.resolve('admin.html')))
