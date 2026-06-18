@@ -1085,6 +1085,56 @@ app.patch('/api/streamer-admin/set/:setId/config', streamerAdminAuth, async (req
   } catch(e) { res.status(500).json({ error: e.message }) }
 })
 
+// ── Streamer admin : EventSub ──
+app.get('/api/streamer-admin/eventsub', streamerAdminAuth, async (req, res) => {
+  try {
+    const s = streamers[req.streamerId]
+    if (!s) return res.status(404).json({ error: 'Streamer introuvable' })
+    const twitchId = s.config.twitch_id
+    const tok = await appToken()
+    const r = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+      headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${tok}` }
+    })
+    const data = await r.json()
+    const subs = (data.data || []).filter(sub => sub.condition?.broadcaster_user_id === twitchId)
+    res.json({ data: subs })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+app.post('/api/streamer-admin/eventsub', streamerAdminAuth, async (req, res) => {
+  try {
+    const s = streamers[req.streamerId]
+    if (!s) return res.status(404).json({ error: 'Streamer introuvable' })
+    const twitchId = s.config.twitch_id
+    if (!twitchId) return res.status(400).json({ error: 'twitch_id manquant dans la config' })
+    const tok = await appToken()
+    const r = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+      method: 'POST',
+      headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${tok}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'channel.channel_points_custom_reward_redemption.add',
+        version: '1',
+        condition: { broadcaster_user_id: twitchId },
+        transport: { method: 'webhook', callback: CALLBACK_URL, secret: WEBHOOK_SECRET }
+      })
+    })
+    const data = await r.json()
+    if (!r.ok) return res.status(r.status).json(data)
+    res.json(data)
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+app.delete('/api/streamer-admin/eventsub/:id', streamerAdminAuth, async (req, res) => {
+  try {
+    const tok = await appToken()
+    const r = await fetch(`https://api.twitch.tv/helix/eventsub/subscriptions?id=${req.params.id}`, {
+      method: 'DELETE',
+      headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${tok}` }
+    })
+    res.json({ ok: r.ok || r.status === 404 })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
 // ── Streamer admin : cartes ──
 app.get('/api/streamer-admin/set/:setId/cards', streamerAdminAuth, (req, res) => {
   const set = streamers[req.streamerId]?.sets[req.params.setId]

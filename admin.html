@@ -381,13 +381,41 @@
   </nav>
 
   <div class="tab-bar" id="streamer-tab-bar">
-    <button class="tab-btn active" onclick="switchStreamerTab('s-sets',this)">Mes Sets</button>
+    <button class="tab-btn active" onclick="switchStreamerTab('s-setup',this)">Installation</button>
+    <button class="tab-btn" onclick="switchStreamerTab('s-sets',this)">Mes Sets</button>
     <button class="tab-btn" onclick="switchStreamerTab('s-cartes',this)">Mes Cartes</button>
     <button class="tab-btn" onclick="switchStreamerTab('s-recompenses',this)">Récompenses</button>
   </div>
 
+  <!-- Installation -->
+  <div id="tab-s-setup" class="tab active">
+    <div class="page">
+      <div class="section">
+        <div class="section-head">
+          <h2>Connexion Twitch (webhook)</h2>
+          <button class="btn sm" onclick="loadStreamerEventsub()">↻ Actualiser</button>
+        </div>
+        <div class="section-body">
+          <div class="alert info" style="margin-top:0;margin-bottom:20px">
+            Active le webhook pour que les achats de points de chaîne créditent automatiquement des boosters à tes viewers.
+            <strong>À faire une seule fois.</strong>
+          </div>
+          <div id="s-eventsub-status"><div class="empty">Chargement…</div></div>
+          <div id="s-eventsub-msg" style="margin-top:12px"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h2>Checklist</h2></div>
+        <div class="section-body">
+          <div id="s-checklist"><div class="empty">Chargement…</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Sets -->
-  <div id="tab-s-sets" class="tab active">
+  <div id="tab-s-sets" class="tab">
     <div class="page">
       <div class="section">
         <div class="section-head">
@@ -966,9 +994,86 @@ async function showStreamerApp(user) {
     streamerData = await api('/api/streamer-admin/me')
     renderStreamerSets()
     populateStreamerSetSelects()
+    loadStreamerEventsub()
   } catch(e) {
-    document.getElementById('s-sets-list').innerHTML = `<div class="alert error" style="margin:16px">${e.message}</div>`
+    document.getElementById('s-eventsub-status').innerHTML = `<div class="alert error">${e.message}</div>`
   }
+}
+
+// ── EventSub streamer ─────────────────────────────────────────────────────────
+
+async function loadStreamerEventsub() {
+  const el = document.getElementById('s-eventsub-status')
+  if (!el) return
+  el.innerHTML = '<div class="empty">Chargement…</div>'
+  try {
+    const data = await api('/api/streamer-admin/eventsub')
+    const subs = data.data || []
+    const active = subs.find(s => s.status === 'enabled')
+    const pending = subs.find(s => s.status?.includes('pending'))
+    const errored = subs.find(s => !s.status?.includes('enabled') && !s.status?.includes('pending'))
+
+    if (active) {
+      el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+        <div><span class="dot green"></span><span class="tag green">Webhook actif</span>
+        <span style="font-size:12px;color:var(--gray);margin-left:10px">ID: <code>${active.id.slice(0,8)}…</code></span></div>
+        <button class="btn danger sm" onclick="deleteStreamerEventsub('${active.id}')">Désactiver</button>
+      </div>`
+    } else if (pending) {
+      el.innerHTML = `<div><span class="dot yellow"></span><span class="tag yellow">En attente de vérification</span></div>`
+    } else {
+      el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+        <div><span class="dot red"></span><span class="tag red">Webhook inactif</span></div>
+        <button class="btn primary" onclick="registerStreamerEventsub()">Activer le webhook</button>
+      </div>`
+      if (errored) el.innerHTML += `<div class="alert error" style="margin-top:10px">Erreur précédente : ${errored.status}</div>`
+    }
+    renderChecklist(!!active)
+  } catch(e) { el.innerHTML = `<div class="alert error">${e.message}</div>` }
+}
+
+async function registerStreamerEventsub() {
+  showMsg('s-eventsub-msg', 'info', 'Activation en cours…')
+  try {
+    await api('/api/streamer-admin/eventsub', { method: 'POST' })
+    showMsg('s-eventsub-msg', 'success', '✓ Webhook activé !')
+    loadStreamerEventsub()
+  } catch(e) { showMsg('s-eventsub-msg', 'error', e.message) }
+}
+
+async function deleteStreamerEventsub(id) {
+  if (!confirm('Désactiver le webhook ? Les achats de points ne créeront plus de boosters.')) return
+  try {
+    await api(`/api/streamer-admin/eventsub/${id}`, { method: 'DELETE' })
+    showMsg('s-eventsub-msg', 'success', '✓ Webhook désactivé')
+    loadStreamerEventsub()
+  } catch(e) { showMsg('s-eventsub-msg', 'error', e.message) }
+}
+
+function renderChecklist(webhookOk) {
+  const el = document.getElementById('s-checklist')
+  if (!el || !streamerData) return
+  const hasSets    = streamerData.sets?.length > 0
+  const hasCards   = streamerData.sets?.some(s => s.nb_cartes > 0)
+  const hasReward  = streamerData.sets?.some(s => s.config.reward_id)
+
+  const item = (ok, label, hint) =>
+    `<div style="display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:16px;flex-shrink:0">${ok ? '✅' : '⬜'}</span>
+      <div>
+        <div style="font-size:13px;font-weight:${ok ? '400' : '700'};${ok ? 'text-decoration:line-through;color:var(--gray)' : ''}">${label}</div>
+        ${!ok ? `<div style="font-size:12px;color:var(--gray);margin-top:2px">${hint}</div>` : ''}
+      </div>
+    </div>`
+
+  el.innerHTML =
+    item(webhookOk, 'Activer le webhook Twitch', 'Fais-le dans l\'onglet Installation ci-dessus') +
+    item(hasSets,   'Créer au moins un set', 'Contacte l\'admin pour créer un set') +
+    item(hasCards,  'Ajouter des cartes à un set', 'Va dans "Mes Cartes"') +
+    item(hasReward, 'Lier une récompense Twitch à un set', 'Va dans "Récompenses", charge tes rewards et lie-en une') +
+    `<div style="padding:12px 0;font-size:13px;color:${webhookOk&&hasSets&&hasCards&&hasReward?'var(--green)':'var(--gray)'}">
+      ${webhookOk&&hasSets&&hasCards&&hasReward ? '🎉 Tout est prêt ! Tes viewers peuvent maintenant acheter des boosters.' : 'Complète les étapes ci-dessus pour mettre ton Karto en ligne.'}
+    </div>`
 }
 
 function switchStreamerTab(name, btn) {
