@@ -1044,6 +1044,8 @@ app.post('/api/admin/approve/:contactId', adminAuth, async (req, res) => {
       [id, twitchUser.id]
     )
 
+    await db.query('DELETE FROM contact_requests WHERE id = $1', [req.params.contactId])
+
     console.log(`Candidature approuvée: ${contact.twitch} → streamer ID: ${id}`)
     res.json({ ok: true, id, config })
   } catch(e) { res.status(500).json({ error: e.message }) }
