@@ -837,7 +837,7 @@ function construireCarte(carte, streamerId, setId) {
     <div style="height:4px;background:${couleur};flex-shrink:0"></div>
     <div style="flex:1;position:relative;overflow:hidden">
       <img src="${imgUrl}" alt="${carte.nom}"
-           style="width:100%;height:100%;object-fit:cover;display:block"
+           style="width:100%;height:100%;object-fit:contain;display:block"
            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
       <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;flex-direction:column;gap:6px;padding:10px;text-align:center">
         <div style="font-size:10px;color:${couleur};text-transform:uppercase;letter-spacing:.1em;font-weight:700">${carte.type}</div>
@@ -1152,10 +1152,14 @@ async function ouvrirPackInventaire(boosterId) {
   if (qty < 1) return toast('Aucun pack disponible', 'rouge')
   packsInventaire[streamerId][setId][boosterId]--
   if (utilisateurConnecte) {
-    await fetch(`/api/packs/${utilisateurConnecte.id}/use`, {
+    const r = await fetch(`/api/packs/${utilisateurConnecte.id}/use`, {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ streamerId, setId, boosterType: boosterId })
-    }).catch(() => {})
+    }).catch(e => { console.error('use pack:', e); return null })
+    if (r && !r.ok) {
+      const err = await r.json().catch(() => ({}))
+      console.error('use pack erreur:', err)
+    }
   }
   const config = setData[cleSet(streamerId, setId)]?.config
   if (config) afficherBoutique(config, null)
