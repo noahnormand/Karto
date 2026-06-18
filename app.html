@@ -512,7 +512,7 @@ function toast(msg, type = '') {
   document.getElementById('toasts').appendChild(el)
   setTimeout(() => el.remove(), 3000)
 }
-const TWITCH_REDIRECT  = location.hostname === 'localhost' ? 'https://localhost:3000' : 'https://karto-182e.onrender.com'
+const TWITCH_REDIRECT  = location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://karto.live'
 let utilisateurConnecte = null
 
 function connexionTwitch() {

@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Karto — Admin</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+  :root {
+    --bg: #0f0f0f; --surface: #1a1a1a; --surface2: #222;
+    --border: #2e2e2e; --text: #e8e8e8; --text2: #999;
+    --primary: #9147ff; --primary-dim: #9147ff30;
+    --green: #3ba55c; --red: #ed4245; --yellow: #faa61a;
+    --radius: 8px; --font: 'Segoe UI', system-ui, sans-serif;
+  }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh }
+  a { color: var(--primary) }
+
+  /* Layout */
+  #app { display: none; flex-direction: column; min-height: 100vh }
+  #app.visible { display: flex }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 56px; flex-shrink: 0 }
+  header .logo { font-weight: 700; font-size: 18px; letter-spacing: -0.5px }
+  header .logo span { color: var(--primary) }
+  header .user { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text2) }
+  header .user img { width: 30px; height: 30px; border-radius: 50% }
+  header .user button { background: none; border: 1px solid var(--border); color: var(--text2); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px }
+  header .user button:hover { color: var(--text) }
+
+  nav { background: var(--surface); border-bottom: 1px solid var(--border); display: flex; padding: 0 24px; gap: 4px }
+  nav button { background: none; border: none; color: var(--text2); padding: 14px 16px; cursor: pointer; font-size: 14px; font-family: var(--font); border-bottom: 2px solid transparent; transition: all .15s }
+  nav button:hover { color: var(--text) }
+  nav button.active { color: var(--primary); border-bottom-color: var(--primary) }
+
+  main { flex: 1; padding: 24px; max-width: 1000px; width: 100% }
+
+  .tab { display: none }
+  .tab.active { display: block }
+
+  /* Components */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px }
+  .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: var(--text) }
+  .card h3 { font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: .5px }
+
+  .form-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap }
+  .form-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 140px }
+  .form-group label { font-size: 12px; color: var(--text2) }
+  input, select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: var(--radius); font-family: var(--font); font-size: 14px; width: 100% }
+  input:focus, select:focus { outline: none; border-color: var(--primary) }
+
+  btn, button.btn { display: inline-flex; align-items: center; gap: 6px; background: var(--primary); color: #fff; border: none; padding: 8px 16px; border-radius: var(--radius); cursor: pointer; font-size: 14px; font-family: var(--font); transition: opacity .15s }
+  button.btn:hover { opacity: .85 }
+  button.btn.secondary { background: var(--surface2); border: 1px solid var(--border); color: var(--text) }
+  button.btn.secondary:hover { border-color: var(--text2) }
+  button.btn.danger { background: var(--red) }
+  button.btn.sm { padding: 4px 10px; font-size: 12px }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px }
+  th { text-align: left; padding: 8px 12px; color: var(--text2); font-weight: 500; border-bottom: 1px solid var(--border); white-space: nowrap }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle }
+  tr:last-child td { border-bottom: none }
+  tr:hover td { background: var(--surface2) }
+  .mono { font-family: monospace; font-size: 12px; color: var(--text2) }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 500 }
+  .badge.green { background: #3ba55c30; color: #3ba55c }
+  .badge.yellow { background: #faa61a30; color: #faa61a }
+  .badge.red { background: #ed424530; color: #ed4245 }
+  .badge.purple { background: var(--primary-dim); color: var(--primary) }
+
+  .alert { padding: 10px 14px; border-radius: var(--radius); font-size: 13px; margin-bottom: 12px }
+  .alert.error { background: #ed424520; border: 1px solid #ed424550; color: #ed4245 }
+  .alert.success { background: #3ba55c20; border: 1px solid #3ba55c50; color: #3ba55c }
+  .alert.info { background: var(--primary-dim); border: 1px solid #9147ff50; color: var(--primary) }
+
+  .empty { text-align: center; padding: 40px; color: var(--text2); font-size: 14px }
+
+  /* Login */
+  #login { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 16px }
+  #login h1 { font-size: 24px; font-weight: 700 }
+  #login h1 span { color: var(--primary) }
+  #login p { color: var(--text2); font-size: 14px; text-align: center; max-width: 300px }
+  #login button { background: #9147ff; color: #fff; border: none; padding: 12px 24px; border-radius: var(--radius); cursor: pointer; font-size: 15px; display: flex; align-items: center; gap: 8px }
+  #loginError { color: #ed4245; font-size: 13px }
+
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #ffffff40; border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite }
+  @keyframes spin { to { transform: rotate(360deg) } }
+
+  /* Sets inline */
+  details { margin-top: 8px }
+  details summary { cursor: pointer; font-size: 13px; color: var(--text2); padding: 6px 0; list-style: none }
+  details summary::before { content: '▶ '; font-size: 10px }
+  details[open] summary::before { content: '▼ ' }
+  .set-row { background: var(--surface2); border-radius: 6px; padding: 12px; margin-top: 8px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap }
+  .set-row .set-info { flex: 1 }
+  .set-row .set-name { font-size: 13px; font-weight: 500 }
+  .set-row .set-meta { font-size: 11px; color: var(--text2) }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login">
+  <h1>Karto <span>Admin</span></h1>
+  <p>Connecte-toi avec Twitch pour accéder au panel d'administration.</p>
+  <button onclick="connexionTwitch()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
+    Se connecter avec Twitch
+  </button>
+  <p id="loginError"></p>
+</div>
+
+<!-- App -->
+<div id="app">
+  <header>
+    <div class="logo">Karto <span>Admin</span></div>
+    <div class="user">
+      <img id="userAvatar" src="" alt="">
+      <span id="userName"></span>
+      <button onclick="deconnexion()">Déconnexion</button>
+    </div>
+  </header>
+  <nav>
+    <button class="active" onclick="switchTab('eventsub', this)">EventSub</button>
+    <button onclick="switchTab('streamers', this)">Streamers</button>
+    <button onclick="switchTab('sets', this)">Sets & Boosts</button>
+    <button onclick="switchTab('recompenses', this)">Récompenses</button>
+    <button onclick="switchTab('contacts', this)">Candidatures</button>
+  </nav>
+  <main>
+
+    <!-- ── EventSub ── -->
+    <div id="tab-eventsub" class="tab active">
+      <div class="card">
+        <h2>Enregistrer un webhook</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Login Twitch du streamer</label>
+            <input id="es-login" type="text" placeholder="ex: tirazy_">
+          </div>
+        </div>
+        <button class="btn" onclick="registerEventsub()">
+          <span id="es-btn-label">Enregistrer</span>
+        </button>
+        <div id="es-msg" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card">
+        <h2>Webhooks actifs <button class="btn secondary sm" style="float:right" onclick="loadEventsub()">↻ Actualiser</button></h2>
+        <div id="eventsub-list"><div class="empty">Chargement…</div></div>
+      </div>
+    </div>
+
+    <!-- ── Streamers ── -->
+    <div id="tab-streamers" class="tab">
+      <div class="card">
+        <h2>Ajouter un streamer</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Login Twitch *</label>
+            <input id="s-login" type="text" placeholder="ex: tirazy_">
+          </div>
+          <div class="form-group">
+            <label>Nom affiché</label>
+            <input id="s-nom" type="text" placeholder="auto si vide">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Couleur principale</label>
+            <input id="s-couleur" type="color" value="#6441a5">
+          </div>
+          <div class="form-group">
+            <label>Couleur secondaire</label>
+            <input id="s-couleur2" type="color" value="#4b2d83">
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <input id="s-desc" type="text" placeholder="Optionnel">
+          </div>
+        </div>
+        <button class="btn" onclick="addStreamer()"><span id="s-btn-label">Ajouter</span></button>
+        <div id="s-msg" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card">
+        <h2>Streamers <button class="btn secondary sm" style="float:right" onclick="loadStreamers()">↻ Actualiser</button></h2>
+        <div id="streamers-list"><div class="empty">Chargement…</div></div>
+      </div>
+    </div>
+
+    <!-- ── Sets ── -->
+    <div id="tab-sets" class="tab">
+      <div class="card">
+        <h2>Créer un set</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Streamer *</label>
+            <select id="set-streamer"></select>
+          </div>
+          <div class="form-group">
+            <label>ID du set * <small style="color:var(--text2)">(ex: saison1)</small></label>
+            <input id="set-id" type="text" placeholder="saison1">
+          </div>
+          <div class="form-group">
+            <label>Nom affiché *</label>
+            <input id="set-nom" type="text" placeholder="L'Ère de la Vapeur">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Description</label>
+            <input id="set-desc" type="text">
+          </div>
+          <div class="form-group">
+            <label>Couleur</label>
+            <input id="set-couleur" type="color" value="#c8a84b">
+          </div>
+        </div>
+        <button class="btn" onclick="createSet()"><span id="set-btn-label">Créer le set</span></button>
+        <div id="set-msg" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card">
+        <h2>Configurer un booster</h2>
+        <div class="alert info">Un set est créé avec un booster "single" par défaut. Utilise cet outil pour modifier son coût en points ou en ajouter d'autres.</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Streamer</label>
+            <select id="boost-streamer" onchange="loadSetsForBoost()"></select>
+          </div>
+          <div class="form-group">
+            <label>Set</label>
+            <select id="boost-set"></select>
+          </div>
+        </div>
+        <div id="boost-editor"></div>
+      </div>
+    </div>
+
+    <!-- ── Récompenses ── -->
+    <div id="tab-recompenses" class="tab">
+      <div class="card">
+        <h2>Lier une récompense Twitch à un set</h2>
+        <div class="alert info">Sélectionne le streamer et le set, récupère ses récompenses Twitch, puis clique sur "Lier" sur la bonne récompense.</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Streamer</label>
+            <select id="r-streamer" onchange="loadSetsForReward()"></select>
+          </div>
+          <div class="form-group">
+            <label>Set</label>
+            <select id="r-set"></select>
+          </div>
+        </div>
+        <button class="btn secondary" onclick="loadRewards()">Charger les récompenses Twitch</button>
+        <div id="r-msg" style="margin-top:10px"></div>
+        <div id="rewards-list" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <!-- ── Contacts ── -->
+    <div id="tab-contacts" class="tab">
+      <div class="card">
+        <h2>Candidatures streamers <button class="btn secondary sm" style="float:right" onclick="loadContacts()">↻ Actualiser</button></h2>
+        <div id="contacts-list"><div class="empty">Chargement…</div></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const TWITCH_CLIENT_ID = 'w7avkje8ceeuerq3wouq6dh39msysm'
+
+let token = null
+let currentUser = null
+let streamersData = []
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+function connexionTwitch() {
+  const url = new URL('https://id.twitch.tv/oauth2/authorize')
+  url.searchParams.set('client_id',     TWITCH_CLIENT_ID)
+  url.searchParams.set('redirect_uri',  window.location.origin + window.location.pathname)
+  url.searchParams.set('response_type', 'token')
+  url.searchParams.set('scope',         'user:read:email')
+  url.searchParams.set('force_verify',  'false')
+  window.location.href = url.toString()
+}
+
+function deconnexion() {
+  localStorage.removeItem('twitch_token')
+  localStorage.removeItem('twitch_user')
+  token = null; currentUser = null
+  document.getElementById('app').classList.remove('visible')
+  document.getElementById('login').style.display = 'flex'
+}
+
+async function init() {
+  const hash = new URLSearchParams(window.location.hash.slice(1))
+  const hashToken = hash.get('access_token')
+  if (hashToken) {
+    history.replaceState(null, '', window.location.pathname)
+    localStorage.setItem('twitch_token', hashToken)
+    token = hashToken
+  } else {
+    token = localStorage.getItem('twitch_token')
+  }
+
+  if (!token) return
+
+  try {
+    const r = await api('/api/admin/check')
+    if (r.ok) {
+      currentUser = r.user
+      showApp()
+    } else {
+      throw new Error(r.error || 'Accès refusé')
+    }
+  } catch(e) {
+    const msg = e.message || 'Accès refusé'
+    document.getElementById('loginError').textContent = msg.includes('403') ? '⛔ Ton compte n\'est pas admin.' : '⚠ ' + msg
+    token = null
+  }
+}
+
+function showApp() {
+  document.getElementById('login').style.display = 'none'
+  document.getElementById('app').classList.add('visible')
+  document.getElementById('userAvatar').src = currentUser.profile_image_url || ''
+  document.getElementById('userName').textContent = currentUser.display_name
+  loadEventsub()
+  loadStreamers()
+}
+
+// ── API helper ────────────────────────────────────────────────────────────────
+
+async function api(url, opts = {}) {
+  const r = await fetch(url, {
+    ...opts,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...(opts.headers || {})
+    },
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  })
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) throw Object.assign(new Error(data.error || r.status), { status: r.status })
+  return data
+}
+
+function msg(elId, type, text) {
+  const el = document.getElementById(elId)
+  if (!el) return
+  el.innerHTML = `<div class="alert ${type}">${text}</div>`
+  if (type === 'success') setTimeout(() => el.innerHTML = '', 4000)
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+
+const TAB_LOADERS = {
+  eventsub:    loadEventsub,
+  streamers:   loadStreamers,
+  sets:        loadSetsTab,
+  recompenses: loadRecompensesTab,
+  contacts:    loadContacts
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'))
+  document.getElementById('tab-' + name).classList.add('active')
+  btn.classList.add('active')
+  TAB_LOADERS[name]?.()
+}
+
+// ── EventSub ──────────────────────────────────────────────────────────────────
+
+async function loadEventsub() {
+  const el = document.getElementById('eventsub-list')
+  el.innerHTML = '<div class="empty">Chargement…</div>'
+  try {
+    const data = await api('/api/admin/eventsub')
+    const subs = data.data || []
+    if (!subs.length) { el.innerHTML = '<div class="empty">Aucun webhook actif.</div>'; return }
+    el.innerHTML = `
+      <table>
+        <thead><tr><th>Type</th><th>Broadcaster</th><th>Statut</th><th>Callback</th><th></th></tr></thead>
+        <tbody>
+          ${subs.map(s => `
+            <tr>
+              <td class="mono">${s.type.split('.').slice(-1)[0]}</td>
+              <td>${s.condition?.broadcaster_user_id || '—'}</td>
+              <td><span class="badge ${s.status === 'enabled' ? 'green' : s.status === 'webhook_callback_verification_pending' ? 'yellow' : 'red'}">${s.status}</span></td>
+              <td class="mono" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.transport?.callback || ''}</td>
+              <td><button class="btn danger sm" onclick="deleteEventsub('${s.id}')">Supprimer</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `
+  } catch(e) { el.innerHTML = `<div class="alert error">${e.message}</div>` }
+}
+
+async function registerEventsub() {
+  const login = document.getElementById('es-login').value.trim()
+  if (!login) return msg('es-msg', 'error', 'Entre un login Twitch')
+  const btn = document.getElementById('es-btn-label')
+  btn.innerHTML = '<span class="spinner"></span>'
+  try {
+    // Fetch Twitch user ID
+    const resp = await fetch(`https://api.twitch.tv/helix/users?login=${login}`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': TWITCH_CLIENT_ID }
+    })
+    const userData = await resp.json()
+    const user = userData.data?.[0]
+    if (!user) throw new Error('Streamer Twitch introuvable')
+
+    await api('/api/admin/eventsub', { method: 'POST', body: { broadcaster_id: user.id } })
+    msg('es-msg', 'success', `✓ Webhook créé pour ${user.display_name}`)
+    document.getElementById('es-login').value = ''
+    loadEventsub()
+  } catch(e) {
+    msg('es-msg', 'error', e.message)
+  } finally { btn.textContent = 'Enregistrer' }
+}
+
+async function deleteEventsub(id) {
+  if (!confirm('Supprimer ce webhook ?')) return
+  try {
+    await api(`/api/admin/eventsub/${id}`, { method: 'DELETE' })
+    loadEventsub()
+  } catch(e) { alert(e.message) }
+}
+
+// ── Streamers ─────────────────────────────────────────────────────────────────
+
+async function loadStreamers() {
+  const el = document.getElementById('streamers-list')
+  el.innerHTML = '<div class="empty">Chargement…</div>'
+  try {
+    streamersData = await api('/api/admin/streamers-full')
+    if (!streamersData.length) { el.innerHTML = '<div class="empty">Aucun streamer configuré.</div>'; return }
+    el.innerHTML = `
+      <table>
+        <thead><tr><th>ID</th><th>Nom</th><th>Twitch</th><th>Sets</th><th>Couleur</th></tr></thead>
+        <tbody>
+          ${streamersData.map(s => `
+            <tr>
+              <td class="mono">${s.id}</td>
+              <td><strong>${s.config.nom}</strong></td>
+              <td class="mono">${s.config.twitch_login || '—'}</td>
+              <td>${s.sets.length}</td>
+              <td><span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:${s.config.couleur}"></span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `
+    updateStreamerSelects()
+  } catch(e) { el.innerHTML = `<div class="alert error">${e.message}</div>` }
+}
+
+async function addStreamer() {
+  const login = document.getElementById('s-login').value.trim()
+  if (!login) return msg('s-msg', 'error', 'Login Twitch requis')
+  const btn = document.getElementById('s-btn-label')
+  btn.innerHTML = '<span class="spinner"></span>'
+  try {
+    const data = await api('/api/admin/streamers', {
+      method: 'POST',
+      body: {
+        twitch_login: login,
+        nom:          document.getElementById('s-nom').value.trim() || undefined,
+        couleur:      document.getElementById('s-couleur').value,
+        couleur2:     document.getElementById('s-couleur2').value,
+        description:  document.getElementById('s-desc').value.trim() || undefined
+      }
+    })
+    msg('s-msg', 'success', `✓ Streamer <strong>${data.config.nom}</strong> ajouté (id: ${data.id})`)
+    document.getElementById('s-login').value = ''
+    loadStreamers()
+  } catch(e) {
+    msg('s-msg', 'error', e.message)
+  } finally { btn.textContent = 'Ajouter' }
+}
+
+function updateStreamerSelects() {
+  const selects = ['set-streamer', 'boost-streamer', 'r-streamer']
+  selects.forEach(id => {
+    const el = document.getElementById(id)
+    if (!el) return
+    const prev = el.value
+    el.innerHTML = streamersData.map(s => `<option value="${s.id}">${s.config.nom} (${s.id})</option>`).join('')
+    if (prev) el.value = prev
+  })
+  loadSetsForBoost()
+  loadSetsForReward()
+}
+
+// ── Sets ──────────────────────────────────────────────────────────────────────
+
+function loadSetsTab() {
+  if (!streamersData.length) loadStreamers().then(updateStreamerSelects)
+  else updateStreamerSelects()
+}
+
+async function createSet() {
+  const streamerId = document.getElementById('set-streamer').value
+  const setId      = document.getElementById('set-id').value.trim()
+  const nom        = document.getElementById('set-nom').value.trim()
+  if (!streamerId || !setId || !nom) return msg('set-msg', 'error', 'Streamer, ID et Nom requis')
+
+  const btn = document.getElementById('set-btn-label')
+  btn.innerHTML = '<span class="spinner"></span>'
+  try {
+    await api(`/api/admin/streamer/${streamerId}/sets`, {
+      method: 'POST',
+      body: {
+        set_id:      setId,
+        nom,
+        description: document.getElementById('set-desc').value.trim(),
+        couleur:     document.getElementById('set-couleur').value
+      }
+    })
+    msg('set-msg', 'success', `✓ Set <strong>${nom}</strong> créé pour ${streamerId}`)
+    document.getElementById('set-id').value  = ''
+    document.getElementById('set-nom').value = ''
+    loadStreamers()
+  } catch(e) {
+    msg('set-msg', 'error', e.message)
+  } finally { btn.textContent = 'Créer le set' }
+}
+
+function loadSetsForBoost() {
+  const streamerId = document.getElementById('boost-streamer')?.value
+  const s = streamersData.find(s => s.id === streamerId)
+  const sel = document.getElementById('boost-set')
+  if (!sel || !s) return
+  sel.innerHTML = s.sets.map(st => `<option value="${st.id}">${st.config.nom} (${st.id})</option>`).join('')
+  renderBoostEditor()
+}
+
+function renderBoostEditor() {
+  const streamerId = document.getElementById('boost-streamer')?.value
+  const setId      = document.getElementById('boost-set')?.value
+  const el         = document.getElementById('boost-editor')
+  if (!el) return
+  const s   = streamersData.find(s => s.id === streamerId)
+  const set = s?.sets.find(st => st.id === setId)
+  if (!set) { el.innerHTML = ''; return }
+
+  const boosters = set.config.boosters || {}
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>ID</th><th>Nom</th><th>Coût points</th><th>Cartes</th><th>Garantie</th></tr></thead>
+      <tbody>
+        ${Object.entries(boosters).map(([bk, bc]) => `
+          <tr>
+            <td class="mono">${bk}</td>
+            <td><input type="text" value="${bc.nom}" id="b-nom-${bk}" style="width:120px"></td>
+            <td><input type="number" value="${bc.cout}" id="b-cout-${bk}" style="width:80px"></td>
+            <td><input type="number" value="${bc.nb_cartes}" id="b-nb-${bk}" style="width:60px"></td>
+            <td>
+              <select id="b-gar-${bk}" style="width:110px">
+                <option value="">Aucune</option>
+                ${['Commun','Peu Commun','Rare','Épique','Légendaire'].map(r => `<option value="${r}" ${bc.garantie===r?'selected':''}>${r}</option>`).join('')}
+              </select>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="btn secondary" onclick="saveBoosterConfig('${streamerId}','${setId}')">Enregistrer</button>
+    </div>
+    <div id="boost-msg" style="margin-top:8px"></div>
+  `
+}
+
+async function saveBoosterConfig(streamerId, setId) {
+  const s   = streamersData.find(s => s.id === streamerId)
+  const set = s?.sets.find(st => st.id === setId)
+  if (!set) return
+
+  const boosters = {}
+  for (const bk of Object.keys(set.config.boosters || {})) {
+    boosters[bk] = {
+      ...set.config.boosters[bk],
+      nom:       document.getElementById(`b-nom-${bk}`)?.value || set.config.boosters[bk].nom,
+      cout:      parseInt(document.getElementById(`b-cout-${bk}`)?.value) || set.config.boosters[bk].cout,
+      nb_cartes: parseInt(document.getElementById(`b-nb-${bk}`)?.value)  || set.config.boosters[bk].nb_cartes,
+      garantie:  document.getElementById(`b-gar-${bk}`)?.value || null
+    }
+  }
+
+  try {
+    await api(`/api/admin/streamer/${streamerId}/set/${setId}/config`, {
+      method: 'PATCH', body: { boosters }
+    })
+    msg('boost-msg', 'success', '✓ Boosters enregistrés')
+    loadStreamers()
+  } catch(e) {
+    msg('boost-msg', 'error', e.message)
+  }
+}
+
+// ── Récompenses ───────────────────────────────────────────────────────────────
+
+function loadRecompensesTab() {
+  if (!streamersData.length) loadStreamers().then(updateStreamerSelects)
+  else updateStreamerSelects()
+}
+
+function loadSetsForReward() {
+  const streamerId = document.getElementById('r-streamer')?.value
+  const s = streamersData.find(s => s.id === streamerId)
+  const sel = document.getElementById('r-set')
+  if (!sel || !s) return
+  sel.innerHTML = s.sets.map(st => `<option value="${st.id}">${st.config.nom} — reward_id actuel: ${st.config.reward_id || 'non défini'}</option>`).join('')
+}
+
+async function loadRewards() {
+  const streamerId = document.getElementById('r-streamer').value
+  const setId      = document.getElementById('r-set').value
+  const el         = document.getElementById('rewards-list')
+  el.innerHTML     = '<div class="empty">Chargement…</div>'
+  msg('r-msg', '', '')
+
+  try {
+    const data = await api(`/api/admin/streamer/${streamerId}/rewards`)
+    const rewards = data.data || []
+    if (!rewards.length) { el.innerHTML = '<div class="empty">Aucune récompense trouvée. Vérifie que le token Twitch est valide pour ce streamer.</div>'; return }
+
+    el.innerHTML = `
+      <table>
+        <thead><tr><th>Titre</th><th>Coût</th><th>ID</th><th></th></tr></thead>
+        <tbody>
+          ${rewards.map(r => `
+            <tr>
+              <td>${r.title}</td>
+              <td>${r.cost} pts</td>
+              <td class="mono">${r.id}</td>
+              <td><button class="btn sm" onclick="linkReward('${streamerId}','${setId}','${r.id}')">Lier à ce set</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `
+  } catch(e) {
+    el.innerHTML = `<div class="alert error">${e.message}</div>`
+  }
+}
+
+async function linkReward(streamerId, setId, rewardId) {
+  try {
+    await api(`/api/admin/streamer/${streamerId}/set/${setId}/config`, {
+      method: 'PATCH', body: { reward_id: rewardId }
+    })
+    msg('r-msg', 'success', `✓ reward_id lié au set ${setId}`)
+    loadStreamers()
+    loadSetsForReward()
+  } catch(e) {
+    msg('r-msg', 'error', e.message)
+  }
+}
+
+// ── Candidatures ──────────────────────────────────────────────────────────────
+
+async function loadContacts() {
+  const el = document.getElementById('contacts-list')
+  el.innerHTML = '<div class="empty">Chargement…</div>'
+  try {
+    const rows = await api('/api/admin/contacts')
+    if (!rows.length) { el.innerHTML = '<div class="empty">Aucune candidature.</div>'; return }
+    el.innerHTML = `
+      <table>
+        <thead><tr><th>Date</th><th>Twitch</th><th>Email</th><th>TCG</th><th>Message</th></tr></thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td class="mono">${new Date(r.created_at).toLocaleDateString('fr')}</td>
+              <td>${r.twitch}</td>
+              <td>${r.email}</td>
+              <td>${r.tcg_url ? `<a href="${r.tcg_url}" target="_blank">Voir</a>` : '—'}</td>
+              <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.message || '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `
+  } catch(e) { el.innerHTML = `<div class="alert error">${e.message}</div>` }
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+init()
+</script>
+</body>
+</html>

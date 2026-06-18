@@ -15,6 +15,8 @@ const TWITCH_CLIENT_ID     = process.env.TWITCH_CLIENT_ID     || ''
 const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET || ''
 let   twitchUserToken      = process.env.TWITCH_USER_TOKEN    || ''
 let   twitchRefreshToken   = process.env.TWITCH_REFRESH_TOKEN || ''
+const ADMIN_IDS            = new Set((process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean))
+const CALLBACK_URL         = process.env.CALLBACK_URL || 'https://karto.live/webhook'
 
 async function refreshTwitchToken() {
   if (!twitchRefreshToken) return false
@@ -87,6 +89,28 @@ function loadStreamers() {
 
 loadStreamers()
 
+async function loadStreamersFromDB() {
+  try {
+    const { rows: sRows } = await db.query('SELECT id, config FROM streamers_config')
+    for (const row of sRows) {
+      const id = row.id
+      const config = row.config
+      if (!streamers[id]) streamers[id] = { config, sets: {} }
+      else streamers[id].config = config
+      if (config.twitch_login) twitchToStreamer[config.twitch_login.toLowerCase()] = id
+    }
+    const { rows: setRows } = await db.query('SELECT streamer_id, set_id, config, cards FROM sets_config')
+    for (const row of setRows) {
+      const { streamer_id, set_id, config, cards } = row
+      if (!streamers[streamer_id]) continue
+      streamers[streamer_id].sets[set_id] = { config, cards: cards || [] }
+    }
+    if (sRows.length) console.log(`${sRows.length} streamers chargés depuis DB`)
+  } catch(e) {
+    console.log('loadStreamersFromDB:', e.message)
+  }
+}
+
 
 // base de données
 
@@ -129,6 +153,22 @@ async function initDB() {
       set_id      TEXT NOT NULL,
       quantite    INTEGER DEFAULT 0,
       PRIMARY KEY (viewer_id, streamer_id, set_id)
+    )
+  `)
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS streamers_config (
+      id         TEXT PRIMARY KEY,
+      config     JSONB NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS sets_config (
+      streamer_id TEXT NOT NULL,
+      set_id      TEXT NOT NULL,
+      config      JSONB NOT NULL,
+      cards       JSONB NOT NULL DEFAULT '[]',
+      PRIMARY KEY (streamer_id, set_id)
     )
   `)
   console.log('db ok')
@@ -680,5 +720,230 @@ app.post('/webhook', (req, res) => {
 })
 
 
+// ─── Admin ────────────────────────────────────────────────────────────────────
+
+async function adminAuth(req, res, next) {
+  const token = (req.headers.authorization || '').replace('Bearer ', '')
+  if (!token) return res.status(401).json({ error: 'Token manquant' })
+  try {
+    const r = await fetch('https://api.twitch.tv/helix/users', {
+      headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': TWITCH_CLIENT_ID }
+    })
+    if (!r.ok) return res.status(401).json({ error: 'Token invalide' })
+    const data = await r.json()
+    const user = data.data[0]
+    if (!user || !ADMIN_IDS.has(user.id)) return res.status(403).json({ error: 'Accès refusé' })
+    req.adminUser  = user
+    req.adminToken = token
+    next()
+  } catch(e) { res.status(500).json({ error: e.message }) }
+}
+
+async function appToken() {
+  const r = await fetch('https://id.twitch.tv/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'client_credentials', client_id: TWITCH_CLIENT_ID, client_secret: TWITCH_CLIENT_SECRET })
+  })
+  return (await r.json()).access_token
+}
+
+// Vérifier si l'utilisateur est admin
+app.get('/api/admin/check', adminAuth, (req, res) => {
+  res.json({ ok: true, user: req.adminUser })
+})
+
+// ── EventSub ──
+app.get('/api/admin/eventsub', adminAuth, async (req, res) => {
+  try {
+    const tok = await appToken()
+    const r = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+      headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${tok}` }
+    })
+    res.json(await r.json())
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+app.post('/api/admin/eventsub', adminAuth, async (req, res) => {
+  try {
+    const { broadcaster_id } = req.body
+    if (!broadcaster_id) return res.status(400).json({ error: 'broadcaster_id requis' })
+    const tok = await appToken()
+    const r = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+      method: 'POST',
+      headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${tok}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'channel.channel_points_custom_reward_redemption.add',
+        version: '1',
+        condition: { broadcaster_user_id: broadcaster_id },
+        transport: { method: 'webhook', callback: CALLBACK_URL, secret: WEBHOOK_SECRET }
+      })
+    })
+    const data = await r.json()
+    if (!r.ok) return res.status(r.status).json(data)
+    res.json(data)
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+app.delete('/api/admin/eventsub/:id', adminAuth, async (req, res) => {
+  try {
+    const tok = await appToken()
+    const r = await fetch(`https://api.twitch.tv/helix/eventsub/subscriptions?id=${req.params.id}`, {
+      method: 'DELETE',
+      headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${tok}` }
+    })
+    res.json({ ok: r.ok || r.status === 404 })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── Streamers ──
+app.get('/api/admin/streamers-full', adminAuth, (req, res) => {
+  const liste = Object.entries(streamers).map(([id, { config, sets }]) => ({
+    id, config,
+    sets: Object.entries(sets).map(([setId, { config: sc, cards }]) => ({
+      id: setId, config: sc, nb_cartes: cards.length
+    }))
+  }))
+  res.json(liste)
+})
+
+app.post('/api/admin/streamers', adminAuth, async (req, res) => {
+  try {
+    const { twitch_login, nom, couleur, couleur2, description } = req.body
+    if (!twitch_login) return res.status(400).json({ error: 'twitch_login requis' })
+
+    const tok = await appToken()
+    const r = await fetch(`https://api.twitch.tv/helix/users?login=${twitch_login}`, {
+      headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${tok}` }
+    })
+    const data = await r.json()
+    const twitchUser = data.data?.[0]
+    if (!twitchUser) return res.status(404).json({ error: 'Streamer Twitch introuvable' })
+
+    const id = twitch_login.toLowerCase().replace(/[^a-z0-9_]/g, '')
+    const config = {
+      id, nom: nom || twitchUser.display_name,
+      couleur: couleur || '#6441a5', couleur2: couleur2 || '#4b2d83',
+      description: description || '',
+      twitch_login: twitch_login.toLowerCase(),
+      twitch_id: twitchUser.id,
+      avatar: twitchUser.profile_image_url
+    }
+
+    // Filesystem (best effort — peut être éphémère sur Render)
+    try {
+      const dir = path.join('streamers', id)
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+      fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(config, null, 2))
+    } catch(_) {}
+
+    // DB (persistant)
+    await db.query(
+      'INSERT INTO streamers_config (id, config) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET config = $2',
+      [id, JSON.stringify(config)]
+    )
+
+    // Mémoire
+    if (!streamers[id]) streamers[id] = { config, sets: {} }
+    else streamers[id].config = config
+    twitchToStreamer[config.twitch_login] = id
+
+    res.json({ ok: true, id, config, twitch: twitchUser })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── Sets ──
+app.post('/api/admin/streamer/:id/sets', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params
+    if (!streamers[id]) return res.status(404).json({ error: 'Streamer introuvable' })
+    const { set_id, nom, description, couleur } = req.body
+    if (!set_id || !nom) return res.status(400).json({ error: 'set_id et nom requis' })
+
+    const config = {
+      id: set_id, nom, description: description || '', date: '', couleur: couleur || streamers[id].config.couleur,
+      boosters: {
+        single: { nom: 'Booster', cout: 500, cout_essence: 100, nb_cartes: 10, garantie: null }
+      },
+      raretes: {
+        'Commun':     { chance: 50, couleur: '#8a9bb0', essence: 5   },
+        'Peu Commun': { chance: 30, couleur: '#4caf80', essence: 10  },
+        'Rare':       { chance: 15, couleur: '#4a90d9', essence: 25  },
+        'Épique':     { chance: 4,  couleur: '#9b59b6', essence: 75  },
+        'Légendaire': { chance: 1,  couleur: '#f0a500', essence: 200 }
+      }
+    }
+
+    try {
+      const dir = path.join('streamers', id, 'sets', set_id)
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+      fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(config, null, 2))
+      fs.writeFileSync(path.join(dir, 'cards.json'), '[]')
+    } catch(_) {}
+
+    await db.query(
+      'INSERT INTO sets_config (streamer_id, set_id, config, cards) VALUES ($1, $2, $3, $4) ON CONFLICT (streamer_id, set_id) DO UPDATE SET config = $3',
+      [id, set_id, JSON.stringify(config), '[]']
+    )
+
+    streamers[id].sets[set_id] = { config, cards: [] }
+    res.json({ ok: true, config })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+app.patch('/api/admin/streamer/:id/set/:setId/config', adminAuth, async (req, res) => {
+  try {
+    const { id, setId } = req.params
+    const set = streamers[id]?.sets[setId]
+    if (!set) return res.status(404).json({ error: 'Set introuvable' })
+
+    const updates = req.body // { reward_id, nom, boosters, ... }
+    Object.assign(set.config, updates)
+
+    try {
+      const cfgPath = path.join('streamers', id, 'sets', setId, 'config.json')
+      if (fs.existsSync(cfgPath)) fs.writeFileSync(cfgPath, JSON.stringify(set.config, null, 2))
+    } catch(_) {}
+
+    await db.query(
+      'INSERT INTO sets_config (streamer_id, set_id, config, cards) VALUES ($1, $2, $3, $4) ON CONFLICT (streamer_id, set_id) DO UPDATE SET config = $3',
+      [id, setId, JSON.stringify(set.config), JSON.stringify(set.cards || [])]
+    )
+
+    res.json({ ok: true, config: set.config })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── Récompenses Twitch ──
+app.get('/api/admin/streamer/:id/rewards', adminAuth, async (req, res) => {
+  try {
+    const s = streamers[req.params.id]
+    if (!s) return res.status(404).json({ error: 'Streamer introuvable' })
+    const twitchId = s.config.twitch_id
+    if (!twitchId) return res.status(400).json({ error: 'twitch_id manquant dans la config' })
+    const r = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${twitchId}`, {
+      headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchUserToken}` }
+    })
+    res.json(await r.json())
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── Candidatures ──
+app.get('/api/admin/contacts', adminAuth, async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT * FROM contact_requests ORDER BY created_at DESC LIMIT 100')
+    res.json(rows)
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── Page admin ──
+app.get('/admin', (_req, res) => res.sendFile(path.resolve('admin.html')))
+
+// ─── Démarrage ────────────────────────────────────────────────────────────────
+
 const PORT = process.env.PORT || 3000
-http.createServer(app).listen(PORT, () => console.log(`Karto sur http://localhost:${PORT}`))
+initDB().then(() => {
+  loadTokensFromDB()
+  loadStreamersFromDB()
+  http.createServer(app).listen(PORT, () => console.log(`Karto sur http://localhost:${PORT}`))
+})
