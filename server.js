@@ -936,7 +936,8 @@ app.get('/api/admin/contacts', adminAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }) }
 })
 
-// ── Page admin ──
+// ── Pages ──
+app.get('/app',   (_req, res) => res.sendFile(path.resolve('app.html')))
 app.get('/admin', (_req, res) => res.sendFile(path.resolve('admin.html')))
 
 // ─── Démarrage ────────────────────────────────────────────────────────────────
