@@ -348,17 +348,22 @@ app.post('/api/packs/:viewerId/add', async (req, res) => {
 app.post('/api/packs/:viewerId/use', async (req, res) => {
   try {
     const { streamerId, setId, boosterType } = req.body
+    console.log(`[use] viewer=${req.params.viewerId} ${streamerId}/${setId} type=${boosterType}`)
     const { rows } = await db.query(
       'SELECT quantite FROM viewer_packs WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3 AND booster_type = $4',
       [req.params.viewerId, streamerId, setId, boosterType]
     )
 
-    if (!rows[0] || rows[0].quantite < 1) return res.status(400).json({ error: 'aucun pack dispo' })
+    if (!rows[0] || rows[0].quantite < 1) {
+      console.log(`[use] REFUS: quantite=${rows[0]?.quantite ?? 'null'}`)
+      return res.status(400).json({ error: 'aucun pack dispo' })
+    }
 
     await db.query(
       'UPDATE viewer_packs SET quantite = quantite - 1 WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3 AND booster_type = $4',
       [req.params.viewerId, streamerId, setId, boosterType]
     )
+    console.log(`[use] OK: quantite ${rows[0].quantite} → ${rows[0].quantite - 1}`)
 
     res.json({ ok: true })
   } catch(e) { console.error('POST /api/packs/use:', e); res.status(500).json({ error: e.message }) }
