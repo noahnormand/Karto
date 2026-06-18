@@ -537,9 +537,11 @@ app.post('/webhook', (req, res) => {
   const msgId   = req.headers['twitch-eventsub-message-id']
   const ts      = req.headers['twitch-eventsub-message-timestamp']
 
+  if (!msgId || !ts || !sig || !req.rawBody) return res.status(400).send('Bad Request')
+
   const toSign  = msgId + ts + req.rawBody
   const expected = 'sha256=' + crypto.createHmac('sha256', WEBHOOK_SECRET).update(toSign).digest('hex')
-  if (!crypto.timingSafeEqual(Buffer.from(sig || ''), Buffer.from(expected))) {
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
     return res.status(403).send('Forbidden')
   }
 
