@@ -47,7 +47,7 @@ async function refreshTwitchToken() {
 app.use(express.json({
   verify: (req, _res, buf) => { req.rawBody = buf }
 }))
-app.use(express.static('.'))
+app.use(express.static('public'))
 
 // streamers en mémoire : { test: { config, sets: { saison1: { config, cards } } } }
 const streamers      = {}
@@ -602,7 +602,9 @@ app.post('/webhook', (req, res) => {
 
   const toSign  = msgId + ts + req.rawBody
   const expected = 'sha256=' + crypto.createHmac('sha256', WEBHOOK_SECRET).update(toSign).digest('hex')
-  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+  const sigBuf = Buffer.from(sig)
+  const expBuf = Buffer.from(expected)
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
     return res.status(403).send('Forbidden')
   }
 
@@ -970,7 +972,8 @@ app.patch('/api/admin/streamer/:id/set/:setId/config', adminAuth, async (req, re
     const set = streamers[id]?.sets[setId]
     if (!set) return res.status(404).json({ error: 'Set introuvable' })
 
-    const updates = req.body // { reward_id, nom, boosters, ... }
+    const ALLOWED = ['reward_id', 'nom', 'description', 'date', 'couleur', 'boosters', 'raretes']
+    const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => ALLOWED.includes(k)))
     Object.assign(set.config, updates)
 
     try {
@@ -1072,7 +1075,9 @@ app.patch('/api/streamer-admin/set/:setId/config', streamerAdminAuth, async (req
     const set = s?.sets[setId]
     if (!set) return res.status(404).json({ error: 'Set introuvable' })
 
-    Object.assign(set.config, req.body)
+    const ALLOWED = ['reward_id', 'nom', 'description', 'date', 'couleur', 'boosters', 'raretes']
+    const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => ALLOWED.includes(k)))
+    Object.assign(set.config, updates)
 
     try {
       const cfgPath = path.join('streamers', req.streamerId, 'sets', setId, 'config.json')
@@ -1274,6 +1279,7 @@ app.delete('/api/admin/contacts/:id', adminAuth, async (req, res) => {
 })
 
 // ── Pages ──
+app.get('/',      (_req, res) => res.sendFile(path.resolve('index.html')))
 app.get('/app',   (_req, res) => res.sendFile(path.resolve('app.html')))
 app.get('/admin', (_req, res) => res.sendFile(path.resolve('admin.html')))
 
