@@ -239,6 +239,19 @@ function checkRateLimit(ip) {
   return true
 }
 
+// Notif Discord (no-op si DISCORD_WEBHOOK_URL non configuré)
+async function notifyDiscord(payload) {
+  const url = process.env.DISCORD_WEBHOOK_URL
+  if (!url) return
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+  } catch(e) { console.log('Discord webhook erreur:', e.message) }
+}
+
 app.post('/api/contact', async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || ''
 
@@ -274,6 +287,24 @@ app.post('/api/contact', async (req, res) => {
       [twitch.trim(), email.trim(), tcg_url?.trim() || null, message?.trim() || null, ip]
     )
     console.log(`Nouvelle candidature streamer: ${twitch} (${email})`)
+
+    // Notif Discord (best effort, n'empêche pas la réponse OK)
+    notifyDiscord({
+      username: 'Karto',
+      embeds: [{
+        title: '🎴 Nouvelle candidature streamer',
+        color: 0x9146ff,
+        fields: [
+          { name: 'Twitch', value: twitch.trim(), inline: true },
+          { name: 'Email',  value: email.trim(),  inline: true },
+          { name: 'TCG',    value: tcg_url?.trim() || '—', inline: false },
+          { name: 'Message', value: (message?.trim() || '—').slice(0, 1000), inline: false }
+        ],
+        footer: { text: 'Approuve sur karto.live/admin' },
+        timestamp: new Date().toISOString()
+      }]
+    })
+
     res.json({ ok: true })
   } catch(e) {
     console.error('Erreur contact:', e.message)
