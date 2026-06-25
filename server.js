@@ -48,6 +48,7 @@ app.use(express.json({
   verify: (req, _res, buf) => { req.rawBody = buf }
 }))
 app.use(express.static('public'))
+app.use('/streamers', express.static('streamers'))
 
 // streamers en mémoire : { test: { config, sets: { saison1: { config, cards } } } }
 const streamers      = {}
@@ -207,6 +208,14 @@ async function saveTokensToDB() {
   }
 }
 
+// Clés autorisées pour PATCH config d'un set (anti escalation)
+const ALLOWED_SET_CONFIG_KEYS = ['nom', 'description', 'date', 'couleur', 'reward_id', 'boosters', 'raretes']
+function pickSetConfig(body) {
+  const out = {}
+  for (const k of ALLOWED_SET_CONFIG_KEYS) if (k in (body || {})) out[k] = body[k]
+  return out
+}
+
 // defaults essence si non définis dans config
 const DEFAULT_ESSENCE_RARETE = {
   'Commun': 5, 'Peu Commun': 10, 'Rare': 25, 'Épique': 75, 'Légendaire': 200
@@ -324,7 +333,7 @@ app.get('/api/collection/:viewerId', async (req, res) => {
   } catch(e) { console.error('GET /api/collection:', e); res.status(500).json({ error: e.message }) }
 })
 
-app.post('/api/streamer/:id/set/:setId/collection/:viewerId', async (req, res) => {
+app.post('/api/streamer/:id/set/:setId/collection/:viewerId', viewerAuth, async (req, res) => {
   const { cartes } = req.body
   const { id: streamerId, setId, viewerId } = req.params
 
@@ -375,7 +384,7 @@ app.get('/api/packs/:viewerId', async (req, res) => {
   } catch(e) { console.error('GET /api/packs:', e); res.status(500).json({ error: e.message }) }
 })
 
-app.post('/api/packs/:viewerId/add', async (req, res) => {
+app.post('/api/packs/:viewerId/add', viewerAuth, async (req, res) => {
   try {
     const { streamerId, setId, boosterType, quantite = 1 } = req.body
     if (!streamerId || !setId || !boosterType) return res.status(400).json({ error: 'champs manquants' })
@@ -391,17 +400,15 @@ app.post('/api/packs/:viewerId/add', async (req, res) => {
   } catch(e) { console.error('POST /api/packs/add:', e); res.status(500).json({ error: e.message }) }
 })
 
-app.post('/api/packs/:viewerId/use', async (req, res) => {
+app.post('/api/packs/:viewerId/use', viewerAuth, async (req, res) => {
   try {
     const { streamerId, setId, boosterType } = req.body
-    console.log(`[use] viewer=${req.params.viewerId} ${streamerId}/${setId} type=${boosterType}`)
     const { rows } = await db.query(
       'SELECT quantite FROM viewer_packs WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3 AND booster_type = $4',
       [req.params.viewerId, streamerId, setId, boosterType]
     )
 
     if (!rows[0] || rows[0].quantite < 1) {
-      console.log(`[use] REFUS: quantite=${rows[0]?.quantite ?? 'null'}`)
       return res.status(400).json({ error: 'aucun pack dispo' })
     }
 
@@ -409,7 +416,6 @@ app.post('/api/packs/:viewerId/use', async (req, res) => {
       'UPDATE viewer_packs SET quantite = quantite - 1 WHERE viewer_id = $1 AND streamer_id = $2 AND set_id = $3 AND booster_type = $4',
       [req.params.viewerId, streamerId, setId, boosterType]
     )
-    console.log(`[use] OK: quantite ${rows[0].quantite} → ${rows[0].quantite - 1}`)
 
     res.json({ ok: true })
   } catch(e) { console.error('POST /api/packs/use:', e); res.status(500).json({ error: e.message }) }
@@ -434,7 +440,7 @@ app.get('/api/essence/:viewerId', async (req, res) => {
 })
 
 // désenchanter des doublons : body { carteId, nb }
-app.post('/api/streamer/:id/set/:setId/desenchanter/:viewerId', async (req, res) => {
+app.post('/api/streamer/:id/set/:setId/desenchanter/:viewerId', viewerAuth, async (req, res) => {
   const { id: streamerId, setId, viewerId } = req.params
   const { carteId, nb = 1 } = req.body
 
@@ -483,7 +489,7 @@ app.post('/api/streamer/:id/set/:setId/desenchanter/:viewerId', async (req, res)
       [viewerId, streamerId, setId]
     )
 
-    res.json({ ok: true, restant: nouvelleQte, essence: essRows[0]?.quantite || 0 })
+    res.json({ ok: true, restant: nouvelleQte, essence: essRows[0]?.quantite || 0, gain: essenceGagnee })
   } catch(e) {
     await client.query('ROLLBACK')
     console.error('desenchanter:', e)
@@ -494,7 +500,7 @@ app.post('/api/streamer/:id/set/:setId/desenchanter/:viewerId', async (req, res)
 })
 
 // racheter une carte avec de l'essence
-app.post('/api/streamer/:id/set/:setId/racheter/:viewerId', async (req, res) => {
+app.post('/api/streamer/:id/set/:setId/racheter/:viewerId', viewerAuth, async (req, res) => {
   const { id: streamerId, setId, viewerId } = req.params
   const { carteId } = req.body
 
@@ -541,6 +547,62 @@ app.post('/api/streamer/:id/set/:setId/racheter/:viewerId', async (req, res) => 
   } catch(e) {
     await client.query('ROLLBACK')
     console.error('racheter:', e)
+    res.status(500).json({ error: e.message })
+  } finally {
+    client.release()
+  }
+})
+
+
+// acheter un booster avec de l'essence : body { boosterType }
+app.post('/api/streamer/:id/set/:setId/acheterBooster/:viewerId', viewerAuth, async (req, res) => {
+  const { id: streamerId, setId, viewerId } = req.params
+  const { boosterType } = req.body
+
+  const set = streamers[streamerId]?.sets[setId]
+  if (!set) return res.status(404).json({ error: 'set introuvable' })
+
+  const booster = set.config.boosters?.[boosterType]
+  if (!booster) return res.status(404).json({ error: 'booster introuvable' })
+
+  const cout = booster.cout_essence
+  if (!cout || cout <= 0) return res.status(400).json({ error: 'booster non rachetable avec essence' })
+
+  const client = await db.connect()
+  try {
+    await client.query('BEGIN')
+
+    const { rows: essRows } = await client.query(
+      'SELECT quantite FROM viewer_essence WHERE viewer_id=$1 AND streamer_id=$2 AND set_id=$3',
+      [viewerId, streamerId, setId]
+    )
+    const essence = essRows[0]?.quantite || 0
+    if (essence < cout) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: `essence insuffisante (${essence}/${cout})` })
+    }
+
+    await client.query(
+      'UPDATE viewer_essence SET quantite=quantite-$1 WHERE viewer_id=$2 AND streamer_id=$3 AND set_id=$4',
+      [cout, viewerId, streamerId, setId]
+    )
+    await client.query(`
+      INSERT INTO viewer_packs (viewer_id, streamer_id, set_id, booster_type, quantite)
+      VALUES ($1, $2, $3, $4, 1)
+      ON CONFLICT (viewer_id, streamer_id, set_id, booster_type)
+      DO UPDATE SET quantite = viewer_packs.quantite + 1
+    `, [viewerId, streamerId, setId, boosterType])
+
+    await client.query('COMMIT')
+
+    const { rows: newEss } = await client.query(
+      'SELECT quantite FROM viewer_essence WHERE viewer_id=$1 AND streamer_id=$2 AND set_id=$3',
+      [viewerId, streamerId, setId]
+    )
+    res.json({ ok: true, essence: newEss[0]?.quantite || 0 })
+  } catch(e) {
+    await client.query('ROLLBACK')
+    console.error('acheterBooster:', e)
     res.status(500).json({ error: e.message })
   } finally {
     client.release()
@@ -743,6 +805,24 @@ async function adminAuth(req, res, next) {
     if (!data.user_id || !ADMIN_IDS.has(data.user_id)) return res.status(403).json({ error: 'Accès refusé' })
     req.adminUser  = { id: data.user_id, login: data.login, display_name: data.login }
     req.adminToken = token
+    next()
+  } catch(e) { res.status(500).json({ error: e.message }) }
+}
+
+// Vérifie que le token Twitch appartient bien au viewerId passé en URL
+async function viewerAuth(req, res, next) {
+  const token = (req.headers.authorization || '').replace('Bearer ', '')
+  if (!token) return res.status(401).json({ error: 'Token manquant' })
+  try {
+    const r = await fetch('https://id.twitch.tv/oauth2/validate', {
+      headers: { 'Authorization': `OAuth ${token}` }
+    })
+    if (!r.ok) return res.status(401).json({ error: 'Token invalide' })
+    const data = await r.json()
+    if (!data.user_id || data.user_id !== req.params.viewerId) {
+      return res.status(403).json({ error: 'Accès refusé' })
+    }
+    req.viewerId = data.user_id
     next()
   } catch(e) { res.status(500).json({ error: e.message }) }
 }
@@ -972,9 +1052,7 @@ app.patch('/api/admin/streamer/:id/set/:setId/config', adminAuth, async (req, re
     const set = streamers[id]?.sets[setId]
     if (!set) return res.status(404).json({ error: 'Set introuvable' })
 
-    const ALLOWED = ['reward_id', 'nom', 'description', 'date', 'couleur', 'boosters', 'raretes']
-    const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => ALLOWED.includes(k)))
-    Object.assign(set.config, updates)
+    Object.assign(set.config, pickSetConfig(req.body))
 
     try {
       const cfgPath = path.join('streamers', id, 'sets', setId, 'config.json')
@@ -1075,9 +1153,7 @@ app.patch('/api/streamer-admin/set/:setId/config', streamerAdminAuth, async (req
     const set = s?.sets[setId]
     if (!set) return res.status(404).json({ error: 'Set introuvable' })
 
-    const ALLOWED = ['reward_id', 'nom', 'description', 'date', 'couleur', 'boosters', 'raretes']
-    const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => ALLOWED.includes(k)))
-    Object.assign(set.config, updates)
+    Object.assign(set.config, pickSetConfig(req.body))
 
     try {
       const cfgPath = path.join('streamers', req.streamerId, 'sets', setId, 'config.json')
