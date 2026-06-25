@@ -271,7 +271,7 @@
   <script>
     // Si Twitch OAuth redirige ici avec un token, on forward vers app.html
     if (location.hash && location.hash.includes('access_token')) {
-      location.replace('/app.html' + location.hash)
+      location.replace('/app' + location.hash)
     }
   </script>
 </head>
@@ -285,7 +285,7 @@
     <a href="#streamers">Pour les créateurs</a>
     <a href="#contact">Rejoindre</a>
   </div>
-  <a href="/app.html" class="nav-cta-desktop">
+  <a href="/app" class="nav-cta-desktop">
     <button class="btn-twitch">
       <svg viewBox="0 0 24 24"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
       Voir la démo
@@ -300,7 +300,7 @@
   <a href="#comment" onclick="toggleMenu()">Comment ça marche</a>
   <a href="#streamers" onclick="toggleMenu()">Pour les créateurs</a>
   <a href="#contact" onclick="toggleMenu()">Rejoindre</a>
-  <a href="/app.html"><button class="btn-twitch">
+  <a href="/app"><button class="btn-twitch">
     <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:#fff"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
     Voir la démo
   </button></a>
@@ -313,7 +313,7 @@
   <p>Tu as un jeu de cartes ? Karto le digitalise sur Twitch. Tes viewers ouvrent des boosters avec leurs points de chaîne et collectionnent tes cartes en ligne.</p>
   <div class="hero-actions">
     <a href="#contact"><button class="btn-black">Rejoindre la bêta</button></a>
-    <a href="/app.html"><button class="btn-outline">Voir la démo →</button></a>
+    <a href="/app"><button class="btn-outline">Voir la démo →</button></a>
   </div>
   <div class="cards-fan">
     <div class="card-fan">N</div>
