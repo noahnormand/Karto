@@ -753,7 +753,7 @@ const processedMsgIds = new Set()
 setInterval(() => { if (processedMsgIds.size > 1000) processedMsgIds.clear() }, 60 * 60 * 1000)
 
 // Webhook Twitch
-app.post('/webhook', (req, res) => {
+app.post('/webhook', async (req, res) => {
   const msgType = req.headers['twitch-eventsub-message-type']
   const sig     = req.headers['twitch-eventsub-message-signature']
   const msgId   = req.headers['twitch-eventsub-message-id']
@@ -761,12 +761,7 @@ app.post('/webhook', (req, res) => {
 
   if (!msgId || !ts || !sig || !req.rawBody) return res.status(400).send('Bad Request')
 
-  if (processedMsgIds.has(msgId)) {
-    console.log(`[webhook] message dupliqué ignoré: ${msgId}`)
-    return res.status(200).send('ok')
-  }
-  processedMsgIds.add(msgId)
-
+  // 1. Signature en PREMIER (avant tout traitement)
   const toSign  = msgId + ts + req.rawBody
   const expected = 'sha256=' + crypto.createHmac('sha256', WEBHOOK_SECRET).update(toSign).digest('hex')
   const sigBuf = Buffer.from(sig)
@@ -775,7 +770,14 @@ app.post('/webhook', (req, res) => {
     return res.status(403).send('Forbidden')
   }
 
+  // 2. Dédup APRÈS signature (sinon un faux msgId avec mauvaise sig pourrait "verrouiller" un vrai msgId)
+  if (processedMsgIds.has(msgId)) {
+    console.log(`[webhook] message dupliqué ignoré: ${msgId}`)
+    return res.status(200).send('ok')
+  }
+
   if (msgType === 'webhook_callback_verification') {
+    processedMsgIds.add(msgId)
     return res.status(200).send(req.body.challenge)
   }
 
@@ -793,7 +795,6 @@ app.post('/webhook', (req, res) => {
     let setId      = null
     let setData    = null
 
-    // Chercher d'abord par broadcaster_user_login
     const login = event.broadcaster_user_login?.toLowerCase()
     const sid   = login ? twitchToStreamer[login] : null
 
@@ -816,53 +817,51 @@ app.post('/webhook', (req, res) => {
 
     if (!setId) {
       console.log(`[webhook] aucun set trouvé pour reward "${event.reward?.title}" (id=${rewardId})`)
+      processedMsgIds.add(msgId) // rien à réessayer
       return res.status(200).send('ok')
     }
 
     // Trouver le booster correspondant au coût
     let boosterKey = null
-    let boosterCfg = null
     for (const [bk, bc] of Object.entries(setData.config.boosters || {})) {
-      if (bc.cout === cost) { boosterKey = bk; boosterCfg = bc; break }
+      if (bc.cout === cost) { boosterKey = bk; break }
     }
     if (!boosterKey) {
-      // Prendre le moins cher par défaut
       const sorted = Object.entries(setData.config.boosters || {}).sort((a,b) => a[1].cout - b[1].cout)
-      if (sorted.length) { [boosterKey, boosterCfg] = sorted[0] }
+      if (sorted.length) { boosterKey = sorted[0][0] }
     }
 
     if (!boosterKey) {
       console.log('[webhook] aucun booster configuré pour ce set')
+      processedMsgIds.add(msgId)
       return res.status(200).send('ok')
     }
 
-    // Créditer le pack
+    // 3. Créditer le pack — AWAIT la DB avant de répondre 200.
+    // Si la DB pète, on renvoie 500 → Twitch retentera (jusqu'à 3x avec backoff)
+    try {
+      await db.query(`
+        INSERT INTO viewer_packs (viewer_id, streamer_id, set_id, booster_type, quantite)
+        VALUES ($1, $2, $3, $4, 1)
+        ON CONFLICT (viewer_id, streamer_id, set_id, booster_type)
+        DO UPDATE SET quantite = viewer_packs.quantite + 1
+      `, [userId, streamerId, setId, boosterKey])
+
+      processedMsgIds.add(msgId) // commit DB OK → safe de dédup
+      console.log(`[webhook] +1 ${boosterKey} → viewer ${userId} (${streamerId}/${setId})`)
+
+      // Notif temps réel (best-effort, pas critique si SSE est down)
+      try { pushSSE(userId, { type: 'pack_recu', streamerId, setId, booster: boosterKey }) } catch(_) {}
+    } catch(e) {
+      console.error('[webhook] erreur DB credit, Twitch retentera:', e.message)
+      return res.status(500).send('DB error')
+    }
+
+    // 4. Marquer la redemption FULFILLED sur Twitch — fire-and-forget (nice-to-have)
     ;(async () => {
       try {
-        await db.query(`
-          INSERT INTO viewer_packs (viewer_id, streamer_id, set_id, booster_type, quantite)
-          VALUES ($1, $2, $3, $4, 1)
-          ON CONFLICT (viewer_id, streamer_id, set_id, booster_type)
-          DO UPDATE SET quantite = viewer_packs.quantite + 1
-        `, [userId, streamerId, setId, boosterKey])
-
-        console.log(`[webhook] +1 ${boosterKey} → viewer ${userId} (${streamerId}/${setId})`)
-
-        // Notifier le viewer en temps réel
-        pushSSE(userId, { type: 'pack_recu', streamerId, setId, booster: boosterKey })
-
-        // Marquer la récompense comme fulfillée
-        const appTokenRes = await fetch('https://id.twitch.tv/oauth2/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            client_id: TWITCH_CLIENT_ID, client_secret: TWITCH_CLIENT_SECRET,
-            grant_type: 'client_credentials'
-          })
-        })
-        const appToken = (await appTokenRes.json()).access_token
-
-        const patchRedemption = async (token) => fetch(
+        if (!twitchUserToken) return
+        const patchRedemption = (token) => fetch(
           `https://api.twitch.tv/helix/channel_points/custom_rewards/redemptions?broadcaster_id=${event.broadcaster_user_id}&reward_id=${rewardId}&id=${event.id}`,
           {
             method: 'PATCH',
@@ -870,24 +869,19 @@ app.post('/webhook', (req, res) => {
             body: JSON.stringify({ status: 'FULFILLED' })
           }
         )
-
-        if (twitchUserToken) {
-          let patchRes = await patchRedemption(twitchUserToken)
-          if (patchRes.status === 401) {
-            console.log('[reward] token expiré, refresh...')
-            const ok = await refreshTwitchToken()
-            if (ok) patchRes = await patchRedemption(twitchUserToken)
-          }
-          if (!patchRes.ok) {
-            const err = await patchRes.json().catch(() => ({}))
-            console.log(`[reward] PATCH redemption: ${patchRes.status}`, err)
-          } else {
-            console.log('[reward] redemption marquée FULFILLED')
-          }
+        let patchRes = await patchRedemption(twitchUserToken)
+        if (patchRes.status === 401) {
+          console.log('[reward] token expiré, refresh...')
+          const ok = await refreshTwitchToken()
+          if (ok) patchRes = await patchRedemption(twitchUserToken)
         }
-      } catch(e) {
-        console.error('[webhook] erreur DB:', e)
-      }
+        if (!patchRes.ok) {
+          const err = await patchRes.json().catch(() => ({}))
+          console.log(`[reward] PATCH redemption: ${patchRes.status}`, err)
+        } else {
+          console.log('[reward] redemption marquée FULFILLED')
+        }
+      } catch(e) { console.log('[reward] PATCH erreur:', e.message) }
     })()
   }
 
