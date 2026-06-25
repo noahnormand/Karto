@@ -367,7 +367,7 @@ function renderCards() {
 
   grid.innerHTML = cards.map(c => {
     const couleur = (setActif.raretes || {})[c.rarete]?.couleur || COULEURS_RARETE_DEFAULT[c.rarete] || '#888'
-    const imgUrl = `streamers/${DATA.id}/sets/${setActif.id}/img/${c.image}`
+    const imgUrl = c.image?.startsWith('http') ? c.image : `streamers/${DATA.id}/sets/${setActif.id}/img/${c.image}`
     return `<div class="card-cell" data-carte='${JSON.stringify(c).replace(/'/g, "&#39;").replace(/<\//g, "\\x3c/")}' onclick='voirCarte(JSON.parse(this.dataset.carte))'>
       <div class="card-border-top" style="background:${couleur}"></div>
       <img src="${imgUrl}" alt="${c.nom}" onerror="this.style.display='none'">
@@ -381,7 +381,7 @@ function renderCards() {
 
 function voirCarte(carte) {
   const couleur = (setActif.raretes || {})[carte.rarete]?.couleur || COULEURS_RARETE_DEFAULT[carte.rarete] || '#888'
-  const imgUrl = `streamers/${DATA.id}/sets/${setActif.id}/img/${carte.image}`
+  const imgUrl = carte.image?.startsWith('http') ? carte.image : `streamers/${DATA.id}/sets/${setActif.id}/img/${carte.image}`
   document.getElementById('modal-card').innerHTML = `
     <div class="modal-border-top" style="background:${couleur}"></div>
     <img src="${imgUrl}" alt="${carte.nom}">

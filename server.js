@@ -1063,6 +1063,12 @@ app.post('/api/admin/streamers', adminAuth, async (req, res) => {
       [id, JSON.stringify(config)]
     )
 
+    // Lier le streamer à son compte Twitch (streamer_admins)
+    await db.query(
+      'INSERT INTO streamer_admins (streamer_id, twitch_id) VALUES ($1, $2) ON CONFLICT (twitch_id) DO UPDATE SET streamer_id = $1',
+      [id, twitchUser.id]
+    )
+
     // Mémoire
     if (!streamers[id]) streamers[id] = { config, sets: {} }
     else streamers[id].config = config
@@ -1164,6 +1170,55 @@ app.patch('/api/admin/streamer/:id/set/:setId/config', adminAuth, async (req, re
     )
 
     res.json({ ok: true, config: set.config })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── Cartes (admin) ──
+app.post('/api/admin/streamer/:id/set/:setId/cards', adminAuth, async (req, res) => {
+  try {
+    const { id, setId } = req.params
+    const set = streamers[id]?.sets[setId]
+    if (!set) return res.status(404).json({ error: 'Set introuvable' })
+
+    const { nom, rarete, type, image } = req.body
+    if (!nom || !rarete) return res.status(400).json({ error: 'nom et rarete requis' })
+
+    const cardId = nom.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '_') + '_' + Date.now()
+    const card = { id: cardId, nom: nom.trim(), rarete, type: type?.trim() || '', image: image?.trim() || '' }
+
+    set.cards.push(card)
+
+    try {
+      fs.writeFileSync(path.join('streamers', id, 'sets', setId, 'cards.json'), JSON.stringify(set.cards, null, 2))
+    } catch(_) {}
+
+    await db.query(
+      'INSERT INTO sets_config (streamer_id, set_id, config, cards) VALUES ($1, $2, $3, $4) ON CONFLICT (streamer_id, set_id) DO UPDATE SET cards = $4',
+      [id, setId, JSON.stringify(set.config), JSON.stringify(set.cards)]
+    )
+    res.json({ ok: true, card })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+app.delete('/api/admin/streamer/:id/set/:setId/card/:cardId', adminAuth, async (req, res) => {
+  try {
+    const { id, setId, cardId } = req.params
+    const set = streamers[id]?.sets[setId]
+    if (!set) return res.status(404).json({ error: 'Set introuvable' })
+    const idx = set.cards.findIndex(c => c.id === cardId)
+    if (idx === -1) return res.status(404).json({ error: 'Carte introuvable' })
+
+    set.cards.splice(idx, 1)
+
+    try {
+      fs.writeFileSync(path.join('streamers', id, 'sets', setId, 'cards.json'), JSON.stringify(set.cards, null, 2))
+    } catch(_) {}
+
+    await db.query(
+      'INSERT INTO sets_config (streamer_id, set_id, config, cards) VALUES ($1, $2, $3, $4) ON CONFLICT (streamer_id, set_id) DO UPDATE SET cards = $4',
+      [id, setId, JSON.stringify(set.config), JSON.stringify(set.cards)]
+    )
+    res.json({ ok: true })
   } catch(e) { res.status(500).json({ error: e.message }) }
 })
 
@@ -1377,7 +1432,6 @@ app.post('/api/streamer-admin/set/:setId/cards', streamerAdminAuth, async (req, 
     const cardId = nom.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '_') + '_' + Date.now()
     const card = { id: cardId, nom: nom.trim(), rarete, image: image?.trim() || '' }
 
-    set.cards.push(card)
     set.cards.push(card)
 
     try {

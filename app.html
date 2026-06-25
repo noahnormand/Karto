@@ -871,7 +871,7 @@ const COULEURS_RARETE = { 'Commun':'#8a9bb0','Peu Commun':'#4caf80','Rare':'#4a9
 
 function construireCarte(carte, streamerId, setId) {
   const couleur = COULEURS_RARETE[carte.rarete] || '#888'
-  const imgUrl  = `streamers/${streamerId}/sets/${setId}/img/${carte.image}`
+  const imgUrl  = carte.image?.startsWith('http') ? carte.image : `streamers/${streamerId}/sets/${setId}/img/${carte.image}`
   return `<div style="width:100%;height:100%;display:flex;flex-direction:column;border:2px solid ${couleur};background:#0d0d0d;position:relative;overflow:hidden">
     <div style="height:4px;background:${couleur};flex-shrink:0"></div>
     <div style="flex:1;position:relative;overflow:hidden">
@@ -901,7 +901,7 @@ function voirCarte(carteId, streamerId, setId) {
   carteDetailCourante = { carte, streamerId, setId }
 
   const couleurModal = COULEURS_RARETE[carte.rarete] || '#888'
-  const imgUrlModal  = `streamers/${streamerId}/sets/${setId}/img/${carte.image}`
+  const imgUrlModal  = carte.image?.startsWith('http') ? carte.image : `streamers/${streamerId}/sets/${setId}/img/${carte.image}`
   document.getElementById('detailCarteWrap').innerHTML =
     `<div style="width:100%;height:100%;border:2px solid ${couleurModal};background:#0d0d0d;display:flex;flex-direction:column;overflow:hidden">
       <div style="height:4px;background:${couleurModal};flex-shrink:0"></div>

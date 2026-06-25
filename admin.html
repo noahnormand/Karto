@@ -324,6 +324,36 @@
           <div id="boost-editor" style="margin-top:16px"></div>
         </div>
       </div>
+
+      <div class="section">
+        <div class="section-head"><h2>Gérer les cartes</h2></div>
+        <div class="section-body">
+          <div class="form-grid" style="grid-template-columns: 1fr 1fr; margin-bottom:16px">
+            <div class="field">
+              <label>Streamer</label>
+              <select id="card-streamer" onchange="loadSetsForCards()"></select>
+            </div>
+            <div class="field">
+              <label>Set</label>
+              <select id="card-set" onchange="loadCardsAdmin()"></select>
+            </div>
+          </div>
+          <div style="border:1px solid var(--border);padding:16px;margin-bottom:16px">
+            <div style="font-weight:700;margin-bottom:12px;font-size:12px;text-transform:uppercase;letter-spacing:.08em">Ajouter une carte</div>
+            <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr 1fr">
+              <div class="field"><label>Nom *</label><input id="card-nom" type="text" placeholder="Ingénieur des Brumes"></div>
+              <div class="field"><label>Rareté *</label><select id="card-rarete"><option>Commun</option><option>Peu Commun</option><option>Rare</option><option>Épique</option><option>Légendaire</option></select></div>
+              <div class="field"><label>Type</label><input id="card-type" type="text" placeholder="Mage, Guerrier…"></div>
+              <div class="field"><label>Image URL *</label><input id="card-image" type="text" placeholder="https://..."></div>
+            </div>
+            <div class="form-actions">
+              <button class="btn primary" onclick="addCardAdmin()">Ajouter la carte</button>
+            </div>
+            <div id="card-msg"></div>
+          </div>
+          <div id="cards-list-admin"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -790,7 +820,7 @@ async function addStreamer() {
 }
 
 function updateStreamerSelects() {
-  ['set-streamer','boost-streamer','r-streamer'].forEach(id => {
+  ['set-streamer','boost-streamer','r-streamer','card-streamer'].forEach(id => {
     const el = document.getElementById(id)
     if (!el) return
     const prev = el.value
@@ -799,6 +829,7 @@ function updateStreamerSelects() {
   })
   loadSetsForBoost()
   loadSetsForReward()
+  loadSetsForCards()
 }
 
 // ── Sets ──────────────────────────────────────────────────────────────────────
@@ -901,6 +932,68 @@ async function saveBoosterConfig(streamerId, setId) {
     showMsg('boost-msg', 'success', '✓ Boosters enregistrés')
     loadStreamers()
   } catch(e) { showMsg('boost-msg', 'error', e.message) }
+}
+
+// ── Cartes (admin) ───────────────────────────────────────────────────────────
+
+function loadSetsForCards() {
+  const streamerId = document.getElementById('card-streamer')?.value
+  const s = streamersData.find(s => s.id === streamerId)
+  const el = document.getElementById('card-set')
+  if (!el) return
+  el.innerHTML = (s?.sets || []).map(st => `<option value="${st.id}">${st.config.nom}</option>`).join('')
+  loadCardsAdmin()
+}
+
+async function loadCardsAdmin() {
+  const streamerId = document.getElementById('card-streamer')?.value
+  const setId = document.getElementById('card-set')?.value
+  const el = document.getElementById('cards-list-admin')
+  if (!el || !streamerId || !setId) { if (el) el.innerHTML = '<div class="empty">Sélectionne un streamer et un set.</div>'; return }
+  try {
+    const cards = await api(`/api/streamer/${streamerId}/set/${setId}/cards`)
+    if (!cards.length) { el.innerHTML = '<div class="empty">Aucune carte dans ce set.</div>'; return }
+    el.innerHTML = `<table>
+      <thead><tr><th style="width:40px"></th><th>Nom</th><th>Rareté</th><th>Type</th><th>Image</th><th></th></tr></thead>
+      <tbody>${cards.map(c => `<tr>
+        <td><img src="streamers/${streamerId}/sets/${setId}/img/${c.image}" style="width:32px;height:45px;object-fit:contain;background:#0d0d0d" onerror="this.src='';this.style.background='#ddd'"></td>
+        <td><strong>${c.nom}</strong></td>
+        <td>${c.rarete}</td>
+        <td>${c.type || '—'}</td>
+        <td class="mono" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.image}</td>
+        <td style="text-align:right"><button class="btn danger sm" onclick="deleteCardAdmin('${streamerId}','${setId}','${c.id}')">×</button></td>
+      </tr>`).join('')}</tbody>
+    </table>`
+  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>` }
+}
+
+async function addCardAdmin() {
+  const streamerId = document.getElementById('card-streamer')?.value
+  const setId = document.getElementById('card-set')?.value
+  const nom = document.getElementById('card-nom').value.trim()
+  const rarete = document.getElementById('card-rarete').value
+  const type = document.getElementById('card-type').value.trim()
+  const image = document.getElementById('card-image').value.trim()
+  if (!streamerId || !setId) return showMsg('card-msg', 'error', 'Sélectionne un streamer et un set')
+  if (!nom || !image) return showMsg('card-msg', 'error', 'Nom et image requis')
+  try {
+    await api(`/api/admin/streamer/${streamerId}/set/${setId}/cards`, { method: 'POST', body: { nom, rarete, type, image } })
+    showMsg('card-msg', 'success', `✓ Carte "${nom}" ajoutée`)
+    document.getElementById('card-nom').value = ''
+    document.getElementById('card-type').value = ''
+    document.getElementById('card-image').value = ''
+    loadCardsAdmin()
+    loadStreamers()
+  } catch(e) { showMsg('card-msg', 'error', e.message) }
+}
+
+async function deleteCardAdmin(streamerId, setId, cardId) {
+  if (!confirm('Supprimer cette carte ?')) return
+  try {
+    await api(`/api/admin/streamer/${streamerId}/set/${setId}/card/${cardId}`, { method: 'DELETE' })
+    loadCardsAdmin()
+    loadStreamers()
+  } catch(e) { alert(e.message) }
 }
 
 // ── Récompenses ───────────────────────────────────────────────────────────────
