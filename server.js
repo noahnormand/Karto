@@ -1455,6 +1455,39 @@ app.delete('/api/admin/contacts/:id', adminAuth, async (req, res) => {
 })
 
 // ── Pages ──
+// ── Page publique streamer ───────────────────────────────────────────────────
+let publicTemplate = null
+app.get('/c/:streamerId', (req, res) => {
+  const s = streamers[req.params.streamerId]
+  if (!s) return res.status(404).send('Streamer introuvable')
+  if (!publicTemplate) publicTemplate = fs.readFileSync(path.resolve('public.html'), 'utf-8')
+  const data = {
+    id:           s.config.id,
+    nom:          s.config.nom,
+    description:  s.config.description || '',
+    couleur:      s.config.couleur || '#9146ff',
+    couleur2:     s.config.couleur2 || s.config.couleur || '#9146ff',
+    avatar:       s.config.avatar || '',
+    twitch_login: s.config.twitch_login || '',
+    sets: Object.entries(s.sets).map(([setId, { config: sc, cards }]) => ({
+      id:       setId,
+      nom:      sc.nom,
+      description: sc.description || '',
+      couleur:  sc.couleur || '#888',
+      raretes:  sc.raretes || {},
+      cards:    (cards || []).map(c => ({ id: c.id, nom: c.nom, rarete: c.rarete, type: c.type || '', image: c.image }))
+    }))
+  }
+  const html = publicTemplate
+    .replace(/\{\{NOM\}\}/g,       data.nom)
+    .replace(/\{\{ID\}\}/g,        data.id)
+    .replace(/\{\{AVATAR\}\}/g,    data.avatar)
+    .replace(/\{\{COULEUR2\}\}/g,  data.couleur2)
+    .replace(/\{\{COULEUR\}\}/g,   data.couleur)
+    .replace('{{DATA_JSON}}',     JSON.stringify(data).replace(/<\//g, '<\\/'))
+  res.send(html)
+})
+
 app.get('/',      (_req, res) => res.sendFile(path.resolve('index.html')))
 app.get('/app',   (_req, res) => res.sendFile(path.resolve('app.html')))
 app.get('/admin', (_req, res) => res.sendFile(path.resolve('admin.html')))

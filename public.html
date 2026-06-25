@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{NOM}} — Karto</title>
+  <meta name="description" content="Découvre les cartes de {{NOM}} sur Karto — ouvre des boosters avec les points de chaîne Twitch !">
+  <meta property="og:title" content="{{NOM}} — Karto">
+  <meta property="og:description" content="Découvre les cartes de {{NOM}} sur Karto !">
+  <meta property="og:image" content="{{AVATAR}}">
+  <meta property="og:url" content="https://karto.live/c/{{ID}}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; border-radius: 0 !important; }
+
+    :root {
+      --bg:     #f0f0f0;
+      --white:  #ffffff;
+      --black:  #111111;
+      --gray:   #666666;
+      --border: #cacaca;
+      --purple: #9146ff;
+      --accent: {{COULEUR}};
+      --accent2: {{COULEUR2}};
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--black);
+      font-family: 'Inter', system-ui, sans-serif;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image: repeating-linear-gradient(
+        -45deg, transparent, transparent 6px,
+        rgba(0,0,0,0.022) 6px, rgba(0,0,0,0.022) 7px
+      );
+    }
+    * { position: relative; z-index: 1; }
+    a { color: inherit; text-decoration: none; }
+
+    /* ─── NAV ─── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 60px; padding: 0 48px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--black);
+    }
+    .nav-logo { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em; }
+    .btn-twitch {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--purple); color: #fff;
+      padding: 9px 18px; font-size: 12px; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      border: none; cursor: pointer; transition: opacity .15s; white-space: nowrap;
+    }
+    .btn-twitch:hover { opacity: 0.85; }
+    .btn-twitch svg { width: 14px; height: 14px; fill: #fff; flex-shrink: 0; }
+
+    /* ─── HERO ─── */
+    .hero {
+      padding: 120px 48px 64px;
+      display: flex; align-items: center; gap: 40px;
+      border-bottom: 1px solid var(--black);
+      max-width: 1100px; margin: 0 auto;
+    }
+    .hero-avatar {
+      width: 120px; height: 120px; flex-shrink: 0;
+      border: 3px solid var(--accent);
+      overflow: hidden;
+    }
+    .hero-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .hero-info { flex: 1; }
+    .hero-tag {
+      display: inline-block;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--accent);
+      border: 1px solid var(--accent); padding: 4px 10px;
+      margin-bottom: 12px;
+    }
+    .hero-info h1 {
+      font-size: clamp(32px, 5vw, 56px);
+      font-weight: 900; letter-spacing: -0.03em;
+      text-transform: uppercase; line-height: 0.95;
+      margin-bottom: 8px;
+    }
+    .hero-info p { font-size: 15px; color: var(--gray); max-width: 500px; }
+    .hero-stats {
+      display: flex; gap: 32px; margin-top: 20px;
+    }
+    .hero-stat { text-align: center; }
+    .hero-stat strong { font-size: 24px; font-weight: 900; display: block; }
+    .hero-stat span { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--gray); font-weight: 700; }
+
+    .hero-actions { margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn-accent {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--accent); color: #fff;
+      padding: 12px 24px; font-size: 12px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      border: none; cursor: pointer; transition: opacity .15s;
+    }
+    .btn-accent:hover { opacity: 0.85; }
+    .btn-outline {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: transparent; color: var(--black);
+      padding: 12px 24px; font-size: 12px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      border: 1px solid var(--black); cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .btn-outline:hover { background: var(--black); color: #fff; }
+
+    /* ─── SETS ─── */
+    .sets-nav {
+      display: flex; border-bottom: 1px solid var(--black);
+      overflow-x: auto; background: var(--white);
+    }
+    .set-tab {
+      padding: 16px 32px; font-size: 12px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      cursor: pointer; border: none; background: none;
+      border-bottom: 3px solid transparent; white-space: nowrap;
+      color: var(--gray); transition: color .15s, border-color .15s;
+    }
+    .set-tab:hover { color: var(--black); }
+    .set-tab.active { color: var(--black); border-bottom-color: var(--accent); }
+
+    /* ─── FILTERS ─── */
+    .filters {
+      display: flex; align-items: center; gap: 12px;
+      padding: 20px 48px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 6px 14px; font-size: 11px; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      border: 1px solid var(--border); background: var(--white);
+      cursor: pointer; color: var(--gray); transition: all .15s;
+    }
+    .filter-btn:hover { border-color: var(--black); color: var(--black); }
+    .filter-btn.active { background: var(--black); color: #fff; border-color: var(--black); }
+    .filter-count {
+      margin-left: auto; font-size: 12px; color: var(--gray); font-weight: 600;
+    }
+
+    /* ─── CARDS GRID ─── */
+    .cards-section { max-width: 1100px; margin: 0 auto; }
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      border-top: 1px solid var(--black);
+      border-left: 1px solid var(--black);
+    }
+    .card-cell {
+      border-right: 1px solid var(--black);
+      border-bottom: 1px solid var(--black);
+      aspect-ratio: 63/88;
+      position: relative; overflow: hidden;
+      cursor: pointer; transition: transform .15s;
+    }
+    .card-cell:hover { transform: scale(1.02); z-index: 2; }
+    .card-cell img {
+      width: 100%; height: 100%; object-fit: contain;
+      display: block; background: #0d0d0d;
+    }
+    .card-cell .card-overlay {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 6px 8px;
+      background: linear-gradient(to top, rgba(0,0,0,.9) 0%, transparent 100%);
+    }
+    .card-overlay .card-rarete {
+      font-size: 8px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700;
+    }
+    .card-overlay .card-nom {
+      font-size: 10px; color: #fff; font-weight: 700;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .card-cell .card-border-top {
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    }
+
+    /* ─── EMPTY ─── */
+    .empty-set {
+      padding: 80px 48px; text-align: center; color: var(--gray);
+      font-size: 14px;
+    }
+
+    /* ─── MODAL ─── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,.85); align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    .modal-overlay.visible { display: flex; }
+    .modal-card {
+      width: min(340px, 90vw); aspect-ratio: 63/88;
+      position: relative; overflow: hidden; cursor: default;
+      background: #0d0d0d;
+    }
+    .modal-card img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .modal-info {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 16px;
+      background: linear-gradient(to top, rgba(0,0,0,.95) 0%, rgba(0,0,0,.6) 60%, transparent 100%);
+    }
+    .modal-rarete { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; margin-bottom: 4px; }
+    .modal-nom { font-size: 18px; color: #fff; font-weight: 900; }
+    .modal-type { font-size: 11px; color: rgba(255,255,255,.6); margin-top: 2px; }
+    .modal-border-top { position: absolute; top: 0; left: 0; right: 0; height: 4px; }
+
+    /* ─── FOOTER ─── */
+    footer {
+      padding: 32px 48px;
+      text-align: center;
+      border-top: 1px solid var(--black);
+      font-size: 12px; color: var(--gray);
+    }
+    footer a { color: var(--black); font-weight: 700; }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 640px) {
+      nav { padding: 0 16px; }
+      .hero { padding: 80px 16px 40px; flex-direction: column; text-align: center; }
+      .hero-avatar { width: 80px; height: 80px; }
+      .hero-stats { justify-content: center; }
+      .hero-actions { justify-content: center; }
+      .filters { padding: 12px 16px; }
+      .cards-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+      footer { padding: 24px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="/" class="nav-logo">Karto</a>
+  <a href="/app" class="btn-twitch">
+    <svg viewBox="0 0 24 24"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
+    Ouvrir des boosters
+  </a>
+</nav>
+
+<!-- HERO -->
+<div class="hero" id="hero">
+  <!-- Rempli par JS -->
+</div>
+
+<!-- SETS NAV -->
+<div class="sets-nav" id="sets-nav"></div>
+
+<!-- FILTERS -->
+<div class="filters" id="filters"></div>
+
+<!-- CARDS -->
+<div class="cards-section">
+  <div class="cards-grid" id="cards-grid"></div>
+  <div class="empty-set" id="empty-msg" style="display:none">Aucune carte dans ce set pour le moment.</div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)fermerModal()">
+  <div class="modal-card" id="modal-card"></div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  Propulsé par <a href="/">Karto</a> — ton TCG physique, en ligne.
+</footer>
+
+<script>
+const DATA = {{DATA_JSON}}
+
+const COULEURS_RARETE_DEFAULT = {
+  'Commun':     '#8a9bb0',
+  'Peu Commun': '#4caf80',
+  'Rare':       '#4a90d9',
+  'Épique':     '#9b59b6',
+  'Légendaire': '#f0a500'
+}
+
+let setActif = null
+let filtreActif = 'Toutes'
+
+function init() {
+  const s = DATA
+  // Hero
+  document.getElementById('hero').innerHTML = `
+    ${s.avatar ? `<div class="hero-avatar"><img src="${s.avatar}" alt="${s.nom}"></div>` : ''}
+    <div class="hero-info">
+      <div class="hero-tag">Collection</div>
+      <h1>${s.nom}</h1>
+      ${s.description ? `<p>${s.description}</p>` : ''}
+      <div class="hero-stats">
+        <div class="hero-stat"><strong>${s.sets.reduce((a, set) => a + set.cards.length, 0)}</strong><span>Cartes</span></div>
+        <div class="hero-stat"><strong>${s.sets.length}</strong><span>Set${s.sets.length > 1 ? 's' : ''}</span></div>
+        <div class="hero-stat"><strong>${new Set(s.sets.flatMap(set => Object.keys(set.raretes || {}))).size}</strong><span>Raretés</span></div>
+      </div>
+      <div class="hero-actions">
+        <a href="/app" class="btn-accent">Ouvrir des boosters</a>
+        ${s.twitch_login ? `<a href="https://twitch.tv/${s.twitch_login}" target="_blank" class="btn-outline">Twitch ↗</a>` : ''}
+      </div>
+    </div>
+  `
+
+  // Sets tabs
+  if (s.sets.length) {
+    const nav = document.getElementById('sets-nav')
+    s.sets.forEach((set, i) => {
+      const btn = document.createElement('button')
+      btn.className = 'set-tab' + (i === 0 ? ' active' : '')
+      btn.textContent = set.nom
+      btn.onclick = () => selectSet(i)
+      nav.appendChild(btn)
+    })
+    selectSet(0)
+  }
+}
+
+function selectSet(index) {
+  setActif = DATA.sets[index]
+  document.querySelectorAll('.set-tab').forEach((t, i) => t.classList.toggle('active', i === index))
+  filtreActif = 'Toutes'
+  renderFilters()
+  renderCards()
+}
+
+function renderFilters() {
+  const el = document.getElementById('filters')
+  if (!setActif) { el.innerHTML = ''; return }
+  const raretes = setActif.raretes || {}
+  const all = ['Toutes', ...Object.keys(raretes)]
+  el.innerHTML = all.map(r => {
+    const count = r === 'Toutes' ? setActif.cards.length : setActif.cards.filter(c => c.rarete === r).length
+    const couleur = r !== 'Toutes' ? raretes[r]?.couleur : null
+    return `<button class="filter-btn${filtreActif === r ? ' active' : ''}"
+      onclick="filtreActif='${r}';renderFilters();renderCards()"
+      ${couleur && filtreActif !== r ? `style="border-color:${couleur};color:${couleur}"` : ''}
+      >${r} <small>(${count})</small></button>`
+  }).join('') + `<span class="filter-count">${filteredCards().length} carte${filteredCards().length > 1 ? 's' : ''}</span>`
+}
+
+function filteredCards() {
+  if (!setActif) return []
+  let cards = [...setActif.cards]
+  if (filtreActif !== 'Toutes') cards = cards.filter(c => c.rarete === filtreActif)
+  const ordre = Object.keys(setActif.raretes || {})
+  cards.sort((a, b) => ordre.indexOf(a.rarete) - ordre.indexOf(b.rarete))
+  return cards
+}
+
+function renderCards() {
+  const grid = document.getElementById('cards-grid')
+  const empty = document.getElementById('empty-msg')
+  const cards = filteredCards()
+  if (!cards.length) { grid.style.display = 'none'; empty.style.display = 'block'; return }
+  grid.style.display = ''; empty.style.display = 'none'
+
+  grid.innerHTML = cards.map(c => {
+    const couleur = (setActif.raretes || {})[c.rarete]?.couleur || COULEURS_RARETE_DEFAULT[c.rarete] || '#888'
+    const imgUrl = `streamers/${DATA.id}/sets/${setActif.id}/img/${c.image}`
+    return `<div class="card-cell" data-carte='${JSON.stringify(c).replace(/'/g, "&#39;").replace(/<\//g, "\\x3c/")}' onclick='voirCarte(JSON.parse(this.dataset.carte))'>
+      <div class="card-border-top" style="background:${couleur}"></div>
+      <img src="${imgUrl}" alt="${c.nom}" onerror="this.style.display='none'">
+      <div class="card-overlay">
+        <div class="card-rarete" style="color:${couleur}">${c.rarete}</div>
+        <div class="card-nom">${c.nom}</div>
+      </div>
+    </div>`
+  }).join('')
+}
+
+function voirCarte(carte) {
+  const couleur = (setActif.raretes || {})[carte.rarete]?.couleur || COULEURS_RARETE_DEFAULT[carte.rarete] || '#888'
+  const imgUrl = `streamers/${DATA.id}/sets/${setActif.id}/img/${carte.image}`
+  document.getElementById('modal-card').innerHTML = `
+    <div class="modal-border-top" style="background:${couleur}"></div>
+    <img src="${imgUrl}" alt="${carte.nom}">
+    <div class="modal-info">
+      <div class="modal-rarete" style="color:${couleur}">${carte.rarete}</div>
+      <div class="modal-nom">${carte.nom}</div>
+      ${carte.type ? `<div class="modal-type">${carte.type}</div>` : ''}
+    </div>
+  `
+  document.getElementById('modal').classList.add('visible')
+}
+
+function fermerModal() {
+  document.getElementById('modal').classList.remove('visible')
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fermerModal() })
+
+init()
+</script>
+</body>
+</html>
