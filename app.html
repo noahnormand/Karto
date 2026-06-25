@@ -1513,7 +1513,8 @@ function lancerParticules() {
 
 function connecterSSE() {
   if (!utilisateurConnecte) return
-  const es = new EventSource(`/events?viewerId=${utilisateurConnecte.id}`)
+  const tok = localStorage.getItem('twitch_token')
+  const es = new EventSource(`/events?viewerId=${utilisateurConnecte.id}${tok ? '&token=' + tok : ''}`)
   es.onmessage = e => {
     try {
       const msg = JSON.parse(e.data)

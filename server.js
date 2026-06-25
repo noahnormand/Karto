@@ -9,6 +9,7 @@ const crypto     = require('crypto')
 const { Pool }   = require('pg')
 const multer     = require('multer')
 const cloudinary = require('cloudinary').v2
+const rateLimit  = require('express-rate-limit')
 
 const app            = express()
 const prod           = process.env.NODE_ENV === 'production'
@@ -27,6 +28,19 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 })
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } })
+
+// ── Input sanitization ───────────────────────────────────────────────────────
+function sanitize(str, maxLen = 200) {
+  if (typeof str !== 'string') return ''
+  return str.trim().slice(0, maxLen)
+}
+function isValidId(id) { return /^[a-zA-Z0-9_-]{1,50}$/.test(id) }
+function isValidColor(c) { return /^#[0-9a-fA-F]{6}$/.test(c) }
+
+// ── Rate limiters ────────────────────────────────────────────────────────────
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, message: { error: 'Trop de requêtes, réessaie plus tard' } })
+const writeLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, message: { error: 'Trop de requêtes, réessaie plus tard' } })
+const uploadLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: 'Trop d\'uploads, réessaie plus tard' } })
 
 async function refreshTwitchToken() {
   if (!twitchRefreshToken) return false
@@ -314,7 +328,7 @@ async function notifyDiscord(payload) {
   } catch(e) { console.log('Discord webhook erreur:', e.message) }
 }
 
-app.post('/api/contact', async (req, res) => {
+app.post('/api/contact', authLimiter, async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || ''
 
   // Rate limiting : 3 soumissions max par heure par IP
@@ -448,7 +462,7 @@ app.get('/api/collection/:viewerId', async (req, res) => {
   } catch(e) { console.error('GET /api/collection:', e); res.status(500).json({ error: e.message }) }
 })
 
-app.post('/api/streamer/:id/set/:setId/collection/:viewerId', viewerAuth, async (req, res) => {
+app.post('/api/streamer/:id/set/:setId/collection/:viewerId', writeLimiter, viewerAuth, async (req, res) => {
   const { cartes } = req.body
   const { id: streamerId, setId, viewerId } = req.params
 
@@ -499,7 +513,7 @@ app.get('/api/packs/:viewerId', async (req, res) => {
   } catch(e) { console.error('GET /api/packs:', e); res.status(500).json({ error: e.message }) }
 })
 
-app.post('/api/packs/:viewerId/add', viewerAuth, async (req, res) => {
+app.post('/api/packs/:viewerId/add', writeLimiter, viewerAuth, async (req, res) => {
   try {
     const { streamerId, setId, boosterType, quantite = 1 } = req.body
     if (!streamerId || !setId || !boosterType) return res.status(400).json({ error: 'champs manquants' })
@@ -515,7 +529,7 @@ app.post('/api/packs/:viewerId/add', viewerAuth, async (req, res) => {
   } catch(e) { console.error('POST /api/packs/add:', e); res.status(500).json({ error: e.message }) }
 })
 
-app.post('/api/packs/:viewerId/use', viewerAuth, async (req, res) => {
+app.post('/api/packs/:viewerId/use', writeLimiter, viewerAuth, async (req, res) => {
   try {
     const { streamerId, setId, boosterType } = req.body
     const { rows } = await db.query(
@@ -555,7 +569,7 @@ app.get('/api/essence/:viewerId', async (req, res) => {
 })
 
 // désenchanter des doublons : body { carteId, nb }
-app.post('/api/streamer/:id/set/:setId/desenchanter/:viewerId', viewerAuth, async (req, res) => {
+app.post('/api/streamer/:id/set/:setId/desenchanter/:viewerId', writeLimiter, viewerAuth, async (req, res) => {
   const { id: streamerId, setId, viewerId } = req.params
   const { carteId, nb = 1 } = req.body
 
@@ -615,7 +629,7 @@ app.post('/api/streamer/:id/set/:setId/desenchanter/:viewerId', viewerAuth, asyn
 })
 
 // racheter une carte avec de l'essence
-app.post('/api/streamer/:id/set/:setId/racheter/:viewerId', viewerAuth, async (req, res) => {
+app.post('/api/streamer/:id/set/:setId/racheter/:viewerId', writeLimiter, viewerAuth, async (req, res) => {
   const { id: streamerId, setId, viewerId } = req.params
   const { carteId } = req.body
 
@@ -670,7 +684,7 @@ app.post('/api/streamer/:id/set/:setId/racheter/:viewerId', viewerAuth, async (r
 
 
 // acheter un booster avec de l'essence : body { boosterType }
-app.post('/api/streamer/:id/set/:setId/acheterBooster/:viewerId', viewerAuth, async (req, res) => {
+app.post('/api/streamer/:id/set/:setId/acheterBooster/:viewerId', writeLimiter, viewerAuth, async (req, res) => {
   const { id: streamerId, setId, viewerId } = req.params
   const { boosterType } = req.body
 
@@ -728,9 +742,22 @@ app.post('/api/streamer/:id/set/:setId/acheterBooster/:viewerId', viewerAuth, as
 // SSE — notifications temps réel vers le frontend
 const sseClients = new Map() // viewerId -> [res, ...]
 
-app.get('/events', (req, res) => {
+app.get('/events', async (req, res) => {
   const viewerId = req.query.viewerId
+  const token    = req.query.token
   if (!viewerId) return res.status(400).end()
+
+  // Vérifier que le token correspond au viewerId
+  if (token) {
+    try {
+      const v = await fetch('https://id.twitch.tv/oauth2/validate', {
+        headers: { 'Authorization': `OAuth ${token}` }
+      })
+      if (!v.ok) return res.status(401).end()
+      const data = await v.json()
+      if (data.user_id !== viewerId) return res.status(403).end()
+    } catch { return res.status(401).end() }
+  }
 
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
@@ -1039,7 +1066,11 @@ app.get('/api/admin/streamers-full', adminAuth, (req, res) => {
 
 app.post('/api/admin/streamers', adminAuth, async (req, res) => {
   try {
-    const { twitch_login, nom, couleur, couleur2, description } = req.body
+    const twitch_login = sanitize(req.body.twitch_login, 50)
+    const nom = sanitize(req.body.nom, 100)
+    const couleur = req.body.couleur && isValidColor(req.body.couleur) ? req.body.couleur : '#6441a5'
+    const couleur2 = req.body.couleur2 && isValidColor(req.body.couleur2) ? req.body.couleur2 : '#4b2d83'
+    const description = sanitize(req.body.description, 500)
     if (!twitch_login) return res.status(400).json({ error: 'twitch_login requis' })
 
     const tok = await appToken()
@@ -1114,11 +1145,14 @@ app.post('/api/admin/streamer/:id/sets', adminAuth, async (req, res) => {
   try {
     const { id } = req.params
     if (!streamers[id]) return res.status(404).json({ error: 'Streamer introuvable' })
-    const { set_id, nom, description, couleur } = req.body
+    const set_id = sanitize(req.body.set_id, 50).toLowerCase().replace(/[^a-z0-9_-]/g, '')
+    const nom = sanitize(req.body.nom, 100)
+    const description = sanitize(req.body.description, 500)
+    const couleur = req.body.couleur && isValidColor(req.body.couleur) ? req.body.couleur : streamers[id].config.couleur
     if (!set_id || !nom) return res.status(400).json({ error: 'set_id et nom requis' })
 
     const config = {
-      id: set_id, nom, description: description || '', date: '', couleur: couleur || streamers[id].config.couleur,
+      id: set_id, nom, description, date: '', couleur,
       boosters: {
         single: { nom: 'Booster', cout: 500, cout_essence: 100, nb_cartes: 10, garantie: null }
       },
@@ -1184,7 +1218,7 @@ app.patch('/api/admin/streamer/:id/set/:setId/config', adminAuth, async (req, re
 })
 
 // ── Upload image ──
-app.post('/api/upload', adminAuth, upload.single('image'), async (req, res) => {
+app.post('/api/upload', uploadLimiter, adminAuth, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Aucun fichier' })
     const result = await new Promise((resolve, reject) => {
@@ -1197,7 +1231,7 @@ app.post('/api/upload', adminAuth, upload.single('image'), async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }) }
 })
 
-app.post('/api/streamer-admin/upload', streamerAdminAuth, upload.single('image'), async (req, res) => {
+app.post('/api/streamer-admin/upload', uploadLimiter, streamerAdminAuth, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Aucun fichier' })
     const result = await new Promise((resolve, reject) => {
@@ -1217,11 +1251,14 @@ app.post('/api/admin/streamer/:id/set/:setId/cards', adminAuth, async (req, res)
     const set = streamers[id]?.sets[setId]
     if (!set) return res.status(404).json({ error: 'Set introuvable' })
 
-    const { nom, rarete, type, image } = req.body
+    const nom = sanitize(req.body.nom, 100)
+    const rarete = sanitize(req.body.rarete, 50)
+    const type = sanitize(req.body.type, 50)
+    const image = sanitize(req.body.image, 500)
     if (!nom || !rarete) return res.status(400).json({ error: 'nom et rarete requis' })
 
     const cardId = nom.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '_') + '_' + Date.now()
-    const card = { id: cardId, nom: nom.trim(), rarete, type: type?.trim() || '', image: image?.trim() || '' }
+    const card = { id: cardId, nom, rarete, type, image }
 
     set.cards.push(card)
 
@@ -1365,12 +1402,15 @@ app.post('/api/streamer-admin/sets', streamerAdminAuth, async (req, res) => {
     const s = streamers[req.streamerId]
     if (!s) return res.status(404).json({ error: 'Streamer introuvable' })
 
-    const { set_id, nom, description, couleur } = req.body
+    const set_id = sanitize(req.body.set_id, 50).toLowerCase().replace(/[^a-z0-9_-]/g, '')
+    const nom = sanitize(req.body.nom, 100)
+    const description = sanitize(req.body.description, 500)
+    const couleur = req.body.couleur && isValidColor(req.body.couleur) ? req.body.couleur : s.config.couleur
     if (!set_id || !nom) return res.status(400).json({ error: 'set_id et nom requis' })
     if (s.sets[set_id]) return res.status(400).json({ error: 'Un set avec cet ID existe déjà' })
 
     const config = {
-      id: set_id, nom, description: description || '', date: '', couleur: couleur || s.config.couleur,
+      id: set_id, nom, description, date: '', couleur,
       boosters: {
         single: { nom: 'Booster', cout: 500, cout_essence: 100, nb_cartes: 10, garantie: null }
       },
@@ -1463,11 +1503,13 @@ app.post('/api/streamer-admin/set/:setId/cards', streamerAdminAuth, async (req, 
     const set = streamers[req.streamerId]?.sets[setId]
     if (!set) return res.status(404).json({ error: 'Set introuvable' })
 
-    const { nom, rarete, image } = req.body
+    const nom = sanitize(req.body.nom, 100)
+    const rarete = sanitize(req.body.rarete, 50)
+    const image = sanitize(req.body.image, 500)
     if (!nom || !rarete) return res.status(400).json({ error: 'nom et rarete requis' })
 
     const cardId = nom.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '_') + '_' + Date.now()
-    const card = { id: cardId, nom: nom.trim(), rarete, image: image?.trim() || '' }
+    const card = { id: cardId, nom, rarete, image }
 
     set.cards.push(card)
 
