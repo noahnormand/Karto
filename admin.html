@@ -344,7 +344,19 @@
               <div class="field"><label>Nom *</label><input id="card-nom" type="text" placeholder="Ingénieur des Brumes"></div>
               <div class="field"><label>Rareté *</label><select id="card-rarete"><option>Commun</option><option>Peu Commun</option><option>Rare</option><option>Épique</option><option>Légendaire</option></select></div>
               <div class="field"><label>Type</label><input id="card-type" type="text" placeholder="Mage, Guerrier…"></div>
-              <div class="field"><label>Image URL *</label><input id="card-image" type="text" placeholder="https://..."></div>
+              <div class="field">
+                <label>Image *</label>
+                <div id="card-drop" style="border:2px dashed var(--border);padding:16px;text-align:center;cursor:pointer;min-height:60px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;transition:border-color .15s"
+                  onclick="document.getElementById('card-file').click()"
+                  ondragover="event.preventDefault();this.style.borderColor='var(--accent,#6441a5)'"
+                  ondragleave="this.style.borderColor='var(--border)'"
+                  ondrop="event.preventDefault();this.style.borderColor='var(--border)';handleCardFile(event.dataTransfer.files[0])">
+                  <span id="card-drop-label" style="font-size:11px;color:var(--gray);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Glisser une image ou cliquer</span>
+                  <img id="card-preview" style="display:none;max-height:80px;object-fit:contain">
+                </div>
+                <input type="file" id="card-file" accept="image/*" style="display:none" onchange="handleCardFile(this.files[0])">
+                <input type="hidden" id="card-image">
+              </div>
             </div>
             <div class="form-actions">
               <button class="btn primary" onclick="addCardAdmin()">Ajouter la carte</button>
@@ -533,8 +545,17 @@
               </select>
             </div>
             <div class="field" style="grid-column:span 2">
-              <label>URL de l'image</label>
-              <input id="c-image" type="text" placeholder="https://...">
+              <label>Image *</label>
+              <div id="sc-drop" style="border:2px dashed var(--border);padding:16px;text-align:center;cursor:pointer;min-height:60px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;transition:border-color .15s"
+                onclick="document.getElementById('sc-file').click()"
+                ondragover="event.preventDefault();this.style.borderColor='var(--accent,#6441a5)'"
+                ondragleave="this.style.borderColor='var(--border)'"
+                ondrop="event.preventDefault();this.style.borderColor='var(--border)';handleStreamerCardFile(event.dataTransfer.files[0])">
+                <span id="sc-drop-label" style="font-size:11px;color:var(--gray);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Glisser une image ou cliquer</span>
+                <img id="sc-preview-img" style="display:none;max-height:80px;object-fit:contain">
+              </div>
+              <input type="file" id="sc-file" accept="image/*" style="display:none" onchange="handleStreamerCardFile(this.files[0])">
+              <input type="hidden" id="c-image">
             </div>
           </div>
           <div id="c-preview" style="margin-bottom:16px"></div>
@@ -967,21 +988,57 @@ async function loadCardsAdmin() {
   } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>` }
 }
 
+let _cardFile = null
+async function handleCardFile(file) {
+  if (!file || !file.type.startsWith('image/')) return
+  _cardFile = file
+  const preview = document.getElementById('card-preview')
+  const label = document.getElementById('card-drop-label')
+  preview.src = URL.createObjectURL(file)
+  preview.style.display = 'block'
+  label.textContent = file.name
+}
+
+async function uploadCardImage() {
+  if (!_cardFile) return null
+  const form = new FormData()
+  form.append('image', _cardFile)
+  const r = await fetch('/api/upload', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` },
+    body: form
+  })
+  const data = await r.json()
+  if (!r.ok) throw new Error(data.error || 'Upload échoué')
+  return data.url
+}
+
 async function addCardAdmin() {
   const streamerId = document.getElementById('card-streamer')?.value
   const setId = document.getElementById('card-set')?.value
   const nom = document.getElementById('card-nom').value.trim()
   const rarete = document.getElementById('card-rarete').value
   const type = document.getElementById('card-type').value.trim()
-  const image = document.getElementById('card-image').value.trim()
+  let image = document.getElementById('card-image').value.trim()
   if (!streamerId || !setId) return showMsg('card-msg', 'error', 'Sélectionne un streamer et un set')
-  if (!nom || !image) return showMsg('card-msg', 'error', 'Nom et image requis')
+  if (!nom) return showMsg('card-msg', 'error', 'Nom requis')
+  if (!_cardFile && !image) return showMsg('card-msg', 'error', 'Image requise')
+  try {
+    if (_cardFile) {
+      showMsg('card-msg', 'info', 'Upload en cours…')
+      image = await uploadCardImage()
+    }
+  } catch(e) { return showMsg('card-msg', 'error', e.message) }
   try {
     await api(`/api/admin/streamer/${streamerId}/set/${setId}/cards`, { method: 'POST', body: { nom, rarete, type, image } })
     showMsg('card-msg', 'success', `✓ Carte "${nom}" ajoutée`)
     document.getElementById('card-nom').value = ''
     document.getElementById('card-type').value = ''
     document.getElementById('card-image').value = ''
+    document.getElementById('card-file').value = ''
+    document.getElementById('card-preview').style.display = 'none'
+    document.getElementById('card-drop-label').textContent = 'Glisser une image ou cliquer'
+    _cardFile = null
     loadCardsAdmin()
     loadStreamers()
   } catch(e) { showMsg('card-msg', 'error', e.message) }
@@ -1448,21 +1505,54 @@ document.getElementById('c-image')?.addEventListener('input', function() {
   prev.innerHTML = this.value ? `<img src="${this.value}" style="height:60px;border:1px solid var(--border)" onerror="this.style.display='none'">` : ''
 })
 
+let _scFile = null
+function handleStreamerCardFile(file) {
+  if (!file || !file.type.startsWith('image/')) return
+  _scFile = file
+  const preview = document.getElementById('sc-preview-img')
+  const label = document.getElementById('sc-drop-label')
+  preview.src = URL.createObjectURL(file)
+  preview.style.display = 'block'
+  label.textContent = file.name
+}
+
+async function uploadStreamerCardImage() {
+  if (!_scFile) return null
+  const form = new FormData()
+  form.append('image', _scFile)
+  const r = await fetch('/api/streamer-admin/upload', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` },
+    body: form
+  })
+  const data = await r.json()
+  if (!r.ok) throw new Error(data.error || 'Upload échoué')
+  return data.url
+}
+
 async function addCarte() {
   const setId = document.getElementById('cartes-set')?.value
   const nom   = document.getElementById('c-nom').value.trim()
   const rarete = document.getElementById('c-rarete').value
-  const image  = document.getElementById('c-image').value.trim()
+  let image  = document.getElementById('c-image').value.trim()
   if (!setId) return showMsg('c-msg', 'error', 'Sélectionne un set')
   if (!nom)   return showMsg('c-msg', 'error', 'Le nom est requis')
+  if (!_scFile && !image) return showMsg('c-msg', 'error', 'Image requise')
   const lbl = document.getElementById('c-btn-label')
   lbl.innerHTML = '<span class="spinner"></span>'
   try {
+    if (_scFile) {
+      showMsg('c-msg', 'info', 'Upload en cours…')
+      image = await uploadStreamerCardImage()
+    }
     const data = await api(`/api/streamer-admin/set/${setId}/cards`, { method: 'POST', body: { nom, rarete, image } })
     showMsg('c-msg', 'success', `✓ <strong>${nom}</strong> ajoutée (${rarete})`)
     document.getElementById('c-nom').value   = ''
     document.getElementById('c-image').value = ''
-    document.getElementById('c-preview').innerHTML = ''
+    document.getElementById('sc-file').value = ''
+    document.getElementById('sc-preview-img').style.display = 'none'
+    document.getElementById('sc-drop-label').textContent = 'Glisser une image ou cliquer'
+    _scFile = null
     await loadCartes()
     // Update nb_cartes in streamerData
     const s = streamerData?.sets?.find(s => s.id === setId)

@@ -1,12 +1,14 @@
 require('dotenv').config()
 
-const express  = require('express')
-const https    = require('https')
-const http     = require('http')
-const fs       = require('fs')
-const path     = require('path')
-const crypto   = require('crypto')
-const { Pool } = require('pg')
+const express    = require('express')
+const https      = require('https')
+const http       = require('http')
+const fs         = require('fs')
+const path       = require('path')
+const crypto     = require('crypto')
+const { Pool }   = require('pg')
+const multer     = require('multer')
+const cloudinary = require('cloudinary').v2
 
 const app            = express()
 const prod           = process.env.NODE_ENV === 'production'
@@ -17,6 +19,14 @@ let   twitchUserToken      = process.env.TWITCH_USER_TOKEN    || ''
 let   twitchRefreshToken   = process.env.TWITCH_REFRESH_TOKEN || ''
 const ADMIN_IDS            = new Set((process.env.ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean))
 const CALLBACK_URL         = process.env.CALLBACK_URL || 'https://karto.live/webhook'
+
+// ── Cloudinary ───────────────────────────────────────────────────────────────
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+})
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } })
 
 async function refreshTwitchToken() {
   if (!twitchRefreshToken) return false
@@ -1170,6 +1180,33 @@ app.patch('/api/admin/streamer/:id/set/:setId/config', adminAuth, async (req, re
     )
 
     res.json({ ok: true, config: set.config })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+// ── Upload image ──
+app.post('/api/upload', adminAuth, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Aucun fichier' })
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        { folder: 'karto', resource_type: 'image', transformation: [{ width: 800, height: 1120, crop: 'limit', quality: 'auto' }] },
+        (err, result) => err ? reject(err) : resolve(result)
+      ).end(req.file.buffer)
+    })
+    res.json({ url: result.secure_url })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
+app.post('/api/streamer-admin/upload', streamerAdminAuth, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Aucun fichier' })
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        { folder: 'karto', resource_type: 'image', transformation: [{ width: 800, height: 1120, crop: 'limit', quality: 'auto' }] },
+        (err, result) => err ? reject(err) : resolve(result)
+      ).end(req.file.buffer)
+    })
+    res.json({ url: result.secure_url })
   } catch(e) { res.status(500).json({ error: e.message }) }
 })
 
