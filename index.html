@@ -198,6 +198,28 @@
     .perk h3 { font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.01em; margin-bottom: 8px; }
     .perk p { font-size: 13px; color: var(--gray); line-height: 1.6; }
 
+    /* ─── CREATORS SHOWCASE ─── */
+    .creators-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 0; border-top: 1px solid var(--black); margin-top: 56px;
+    }
+    .creator-card {
+      padding: 28px; border-right: 1px solid var(--black); border-bottom: 1px solid var(--black);
+      display: flex; align-items: center; gap: 16px;
+      text-decoration: none; color: inherit; transition: background .15s;
+    }
+    .creator-card:hover { background: var(--white); }
+    .creator-avatar {
+      width: 56px; height: 56px; border: 1px solid var(--border);
+      object-fit: cover; flex-shrink: 0;
+    }
+    .creator-name { font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.01em; }
+    .creator-stats { font-size: 12px; color: var(--gray); margin-top: 2px; }
+    .creators-empty {
+      grid-column: 1 / -1; padding: 48px; text-align: center;
+      font-size: 14px; color: var(--gray);
+    }
+
     /* ─── CONTACT ─── */
     .contact-grid {
       display: grid; grid-template-columns: 1fr 1fr;
@@ -294,6 +316,7 @@
   <div class="nav-links">
     <a href="#comment">Comment ça marche</a>
     <a href="#streamers">Pour les créateurs</a>
+    <a href="#creators">Collections</a>
     <a href="#contact">Rejoindre</a>
   </div>
   <a href="/app" class="nav-cta-desktop">
@@ -310,6 +333,7 @@
 <div class="mobile-menu" id="mobileMenu">
   <a href="#comment" onclick="toggleMenu()">Comment ça marche</a>
   <a href="#streamers" onclick="toggleMenu()">Pour les créateurs</a>
+  <a href="#creators" onclick="toggleMenu()">Collections</a>
   <a href="#contact" onclick="toggleMenu()">Rejoindre</a>
   <a href="/app"><button class="btn-twitch">
     <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:#fff"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
@@ -319,17 +343,17 @@
 
 <!-- HERO -->
 <section class="hero">
-  <div class="hero-tag">Bêta ouverte aux créateurs</div>
+  <div class="hero-tag">Gratuit · Prêt en 5 minutes</div>
   <h1>Ton TCG<br>physique,<br>en ligne.</h1>
-  <p>Tu as un jeu de cartes ? Karto le digitalise sur Twitch. Tes viewers ouvrent des boosters avec leurs points de chaîne et collectionnent tes cartes en ligne.</p>
+  <p>Karto transforme ton jeu de cartes en expérience Twitch. Tes viewers ouvrent des boosters avec leurs points de chaîne et collectionnent tes cartes en ligne.</p>
   <div class="hero-actions">
-    <a href="#contact"><button class="btn-black">Rejoindre la bêta</button></a>
-    <a href="/app"><button class="btn-outline">Voir la démo →</button></a>
+    <a href="#contact"><button class="btn-black">Lancer mon TCG sur Twitch</button></a>
+    <a href="#creators"><button class="btn-outline">Voir les collections →</button></a>
   </div>
   <div class="cards-fan">
-    <div class="card-fan">N</div>
-    <div class="card-fan active">2</div>
-    <div class="card-fan">O</div>
+    <div class="card-fan" style="background:linear-gradient(135deg,#6441a5,#4b2d83);color:#fff;border-color:#6441a5">K</div>
+    <div class="card-fan active" style="background:linear-gradient(135deg,#00d4ff,#0099cc);color:#fff;border-color:#00d4ff">★</div>
+    <div class="card-fan" style="background:linear-gradient(135deg,#f0a500,#cc8800);color:#fff;border-color:#f0a500">L</div>
   </div>
 </section>
 
@@ -395,6 +419,18 @@
   </div>
 </section>
 
+<!-- CREATORS -->
+<section id="creators">
+  <div class="container">
+    <p class="section-label">Créateurs en ligne</p>
+    <h2 class="section-title">Ils utilisent<br>déjà Karto.</h2>
+    <p class="section-sub">Découvre les collections disponibles et explore les cartes de chaque créateur.</p>
+    <div class="creators-grid" id="creatorsGrid">
+      <div class="creators-empty">Chargement...</div>
+    </div>
+  </div>
+</section>
+
 <!-- CONTACT -->
 <section id="contact">
   <div class="container">
@@ -440,6 +476,33 @@
 </footer>
 
 <script>
+  // ── Chargement des créateurs ──
+  async function loadCreators() {
+    const grid = document.getElementById('creatorsGrid')
+    try {
+      const r = await fetch('/api/streamers')
+      const streamers = await r.json()
+      if (!streamers.length) {
+        grid.innerHTML = '<div class="creators-empty">Les premiers créateurs arrivent bientôt.</div>'
+        return
+      }
+      grid.innerHTML = streamers.map(s => {
+        const nbSets = s.sets?.length || 0
+        const nbCards = s.sets?.reduce((t, set) => t + (set.nbCards || 0), 0) || 0
+        return `<a href="/c/${s.id}" class="creator-card">
+          <img class="creator-avatar" src="${s.avatar || ''}" alt="${s.nom}" onerror="this.style.display='none'">
+          <div>
+            <div class="creator-name">${s.nom}</div>
+            <div class="creator-stats">${nbSets} set${nbSets > 1 ? 's' : ''} · ${nbCards} carte${nbCards > 1 ? 's' : ''}</div>
+          </div>
+        </a>`
+      }).join('')
+    } catch {
+      grid.innerHTML = '<div class="creators-empty">Impossible de charger les créateurs.</div>'
+    }
+  }
+  loadCreators()
+
   function toggleMenu() {
     document.getElementById('mobileMenu').classList.toggle('open')
   }

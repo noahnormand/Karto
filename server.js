@@ -468,15 +468,17 @@ app.get('/api/streamers', (req, res) => {
   const liste = Object.entries(streamers).map(([id, { config, sets }]) => ({
     id,
     nom:         config.nom,
+    avatar:      config.avatar,
     couleur:     config.couleur,
     couleur2:    config.couleur2,
     description: config.description,
-    sets: Object.entries(sets).map(([setId, { config: sc }]) => ({
+    sets: Object.entries(sets).map(([setId, { config: sc, cards }]) => ({
       id:          setId,
       nom:         sc.nom,
       description: sc.description,
       date:        sc.date,
-      couleur:     sc.couleur
+      couleur:     sc.couleur,
+      nbCards:     (cards || []).length
     }))
   }))
   res.json(liste)
