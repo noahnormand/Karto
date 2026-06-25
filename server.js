@@ -68,6 +68,40 @@ async function refreshTwitchToken() {
   }
 }
 
+// ── Security headers ─────────────────────────────────────────────────────────
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'DENY')
+  res.setHeader('X-XSS-Protection', '1; mode=block')
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  if (prod) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+    res.setHeader('Content-Security-Policy', [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://static-cdn.jtvnw.net",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: https://res.cloudinary.com https://static-cdn.jtvnw.net https://*.twitch.tv",
+      "connect-src 'self' https://api.twitch.tv https://id.twitch.tv",
+      "frame-ancestors 'none'"
+    ].join('; '))
+  }
+  next()
+})
+
+// ── Analytics (lightweight, server-side) ─────────────────────────────────────
+app.use((req, _res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api/') && !req.path.includes('.')) {
+    const page = req.path || '/'
+    db.query(
+      `INSERT INTO page_views (page, day) VALUES ($1, CURRENT_DATE)
+       ON CONFLICT (page, day) DO UPDATE SET views = page_views.views + 1`,
+      [page]
+    ).catch(() => {})
+  }
+  next()
+})
+
 app.use(express.json({
   verify: (req, _res, buf) => { req.rawBody = buf }
 }))
@@ -200,6 +234,14 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS streamer_admins (
       streamer_id TEXT NOT NULL,
       twitch_id   TEXT PRIMARY KEY
+    )
+  `)
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS page_views (
+      page  TEXT NOT NULL,
+      day   DATE NOT NULL,
+      views INTEGER DEFAULT 1,
+      PRIMARY KEY (page, day)
     )
   `)
   console.log('db ok')
@@ -1587,6 +1629,16 @@ app.delete('/api/admin/contacts/:id', adminAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }) }
 })
 
+// ── Analytics admin ──
+app.get('/api/admin/analytics', adminAuth, async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT page, day, views FROM page_views WHERE day >= CURRENT_DATE - INTERVAL '30 days' ORDER BY day DESC, views DESC`
+    )
+    res.json(rows)
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
 // ── Pages ──
 // ── Page publique streamer ───────────────────────────────────────────────────
 let publicTemplate = null
@@ -1621,9 +1673,43 @@ app.get('/c/:streamerId', (req, res) => {
   res.send(html)
 })
 
+// ── SEO : sitemap dynamique ──────────────────────────────────────────────────
+app.get('/sitemap.xml', (_req, res) => {
+  const urls = [
+    { loc: 'https://karto.live/', priority: '1.0' },
+    { loc: 'https://karto.live/app', priority: '0.8' }
+  ]
+  Object.keys(streamers).forEach(id => {
+    urls.push({ loc: `https://karto.live/c/${id}`, priority: '0.6' })
+  })
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map(u => `  <url><loc>${u.loc}</loc><changefreq>weekly</changefreq><priority>${u.priority}</priority></url>`).join('\n')}
+</urlset>`
+  res.setHeader('Content-Type', 'application/xml')
+  res.send(xml)
+})
+
+app.get('/robots.txt', (_req, res) => {
+  res.setHeader('Content-Type', 'text/plain')
+  res.send('User-agent: *\nAllow: /\nSitemap: https://karto.live/sitemap.xml')
+})
+
 app.get('/',      (_req, res) => res.sendFile(path.resolve('index.html')))
 app.get('/app',   (_req, res) => res.sendFile(path.resolve('app.html')))
 app.get('/admin', (_req, res) => res.sendFile(path.resolve('admin.html')))
+
+// ── 404 ──────────────────────────────────────────────────────────────────────
+app.use((req, res) => {
+  if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Route introuvable' })
+  res.status(404).send(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>404 — Karto</title><style>*{margin:0;padding:0;box-sizing:border-box}body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0a0a1a;color:#fff;font-family:system-ui,-apple-system,sans-serif;text-align:center}.c{max-width:400px;padding:2rem}h1{font-size:6rem;background:linear-gradient(135deg,#6441a5,#00d4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1}p{margin:1rem 0;color:#8a9bb0}a{display:inline-block;margin-top:1rem;padding:.75rem 2rem;background:linear-gradient(135deg,#6441a5,#4b2d83);color:#fff;text-decoration:none;border-radius:12px;transition:transform .2s}a:hover{transform:scale(1.05)}</style></head><body><div class="c"><h1>404</h1><p>Cette page n'existe pas.</p><a href="/">Retour à l'accueil</a></div></body></html>`)
+})
+
+// ── Global error handler ─────────────────────────────────────────────────────
+app.use((err, _req, res, _next) => {
+  console.error('Erreur non gérée:', err.stack || err.message || err)
+  res.status(500).json({ error: prod ? 'Erreur interne' : err.message })
+})
 
 // ─── Démarrage ────────────────────────────────────────────────────────────────
 
