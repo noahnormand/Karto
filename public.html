@@ -278,6 +278,7 @@
 </footer>
 
 <script>
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML }
 const DATA = {{DATA_JSON}}
 
 const COULEURS_RARETE_DEFAULT = {
@@ -295,10 +296,10 @@ function init() {
   const s = DATA
   // Hero
   document.getElementById('hero').innerHTML = `
-    ${s.avatar ? `<div class="hero-avatar"><img src="${s.avatar}" alt="${s.nom}"></div>` : ''}
+    ${s.avatar ? `<div class="hero-avatar"><img src="${s.avatar}" alt="${esc(s.nom)}"></div>` : ''}
     <div class="hero-info">
       <div class="hero-tag">Collection</div>
-      <h1>${s.nom}</h1>
+      <h1>${esc(s.nom)}</h1>
       ${s.description ? `<p>${s.description}</p>` : ''}
       <div class="hero-stats">
         <div class="hero-stat"><strong>${s.sets.reduce((a, set) => a + set.cards.length, 0)}</strong><span>Cartes</span></div>
@@ -370,10 +371,10 @@ function renderCards() {
     const imgUrl = c.image?.startsWith('http') ? c.image : `streamers/${DATA.id}/sets/${setActif.id}/img/${c.image}`
     return `<div class="card-cell" data-carte='${JSON.stringify(c).replace(/'/g, "&#39;").replace(/<\//g, "\\x3c/")}' onclick='voirCarte(JSON.parse(this.dataset.carte))'>
       <div class="card-border-top" style="background:${couleur}"></div>
-      <img src="${imgUrl}" alt="${c.nom}" onerror="this.style.display='none'">
+      <img src="${imgUrl}" alt="${esc(c.nom)}" onerror="this.style.display='none'">
       <div class="card-overlay">
-        <div class="card-rarete" style="color:${couleur}">${c.rarete}</div>
-        <div class="card-nom">${c.nom}</div>
+        <div class="card-rarete" style="color:${couleur}">${esc(c.rarete)}</div>
+        <div class="card-nom">${esc(c.nom)}</div>
       </div>
     </div>`
   }).join('')
@@ -384,10 +385,10 @@ function voirCarte(carte) {
   const imgUrl = carte.image?.startsWith('http') ? carte.image : `streamers/${DATA.id}/sets/${setActif.id}/img/${carte.image}`
   document.getElementById('modal-card').innerHTML = `
     <div class="modal-border-top" style="background:${couleur}"></div>
-    <img src="${imgUrl}" alt="${carte.nom}">
+    <img src="${imgUrl}" alt="${esc(carte.nom)}">
     <div class="modal-info">
-      <div class="modal-rarete" style="color:${couleur}">${carte.rarete}</div>
-      <div class="modal-nom">${carte.nom}</div>
+      <div class="modal-rarete" style="color:${couleur}">${esc(carte.rarete)}</div>
+      <div class="modal-nom">${esc(carte.nom)}</div>
       ${carte.type ? `<div class="modal-type">${carte.type}</div>` : ''}
     </div>
   `

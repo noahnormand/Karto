@@ -27,7 +27,14 @@ cloudinary.config({
   api_key:    process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 })
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } })
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif']
+    cb(null, allowed.includes(file.mimetype))
+  }
+})
 
 // ── Input sanitization ───────────────────────────────────────────────────────
 function sanitize(str, maxLen = 200) {
@@ -292,6 +299,7 @@ const DEFAULT_COUT_ESSENCE = { single: 100, pack: 250, display: 800 }
 // contact streamer
 
 const contactRateLimit = new Map() // ip -> { count, resetAt }
+setInterval(() => { const now = Date.now(); for (const [k, v] of contactRateLimit) if (now > v.resetAt) contactRateLimit.delete(k) }, 10 * 60 * 1000)
 
 function checkRateLimit(ip) {
   const now = Date.now()
@@ -307,6 +315,7 @@ function checkRateLimit(ip) {
 
 // Lookup Twitch public (rate-limité par IP : 30/min) — utilisé par le form de candidature
 const lookupRateLimit = new Map()
+setInterval(() => { const now = Date.now(); for (const [k, v] of lookupRateLimit) if (now > v.resetAt) lookupRateLimit.delete(k) }, 5 * 60 * 1000)
 function checkLookupRate(ip) {
   const now = Date.now()
   const entry = lookupRateLimit.get(ip)
@@ -354,7 +363,7 @@ app.get('/api/twitch/user/:login', async (req, res) => {
       profile_image_url: user.profile_image_url,
       broadcaster_type: user.broadcaster_type // '', 'affiliate', 'partner'
     })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // Notif Discord (no-op si DISCORD_WEBHOOK_URL non configuré)
@@ -501,7 +510,7 @@ app.get('/api/collection/:viewerId', async (req, res) => {
       col[r.streamer_id][r.set_id][r.carte_id] = r.quantite
     })
     res.json(col)
-  } catch(e) { console.error('GET /api/collection:', e); res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error('GET /api/collection:', e); console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 app.post('/api/streamer/:id/set/:setId/collection/:viewerId', writeLimiter, viewerAuth, async (req, res) => {
@@ -552,7 +561,7 @@ app.get('/api/packs/:viewerId', async (req, res) => {
       inv[r.streamer_id][r.set_id][r.booster_type] = r.quantite
     })
     res.json(inv)
-  } catch(e) { console.error('GET /api/packs:', e); res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error('GET /api/packs:', e); console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 app.post('/api/packs/:viewerId/add', writeLimiter, viewerAuth, async (req, res) => {
@@ -568,7 +577,7 @@ app.post('/api/packs/:viewerId/add', writeLimiter, viewerAuth, async (req, res) 
     `, [req.params.viewerId, streamerId, setId, boosterType, quantite])
 
     res.json({ ok: true })
-  } catch(e) { console.error('POST /api/packs/add:', e); res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error('POST /api/packs/add:', e); console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 app.post('/api/packs/:viewerId/use', writeLimiter, viewerAuth, async (req, res) => {
@@ -589,7 +598,7 @@ app.post('/api/packs/:viewerId/use', writeLimiter, viewerAuth, async (req, res) 
     )
 
     res.json({ ok: true })
-  } catch(e) { console.error('POST /api/packs/use:', e); res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error('POST /api/packs/use:', e); console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 
@@ -664,7 +673,7 @@ app.post('/api/streamer/:id/set/:setId/desenchanter/:viewerId', writeLimiter, vi
   } catch(e) {
     await client.query('ROLLBACK')
     console.error('desenchanter:', e)
-    res.status(500).json({ error: e.message })
+    console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message })
   } finally {
     client.release()
   }
@@ -718,7 +727,7 @@ app.post('/api/streamer/:id/set/:setId/racheter/:viewerId', writeLimiter, viewer
   } catch(e) {
     await client.query('ROLLBACK')
     console.error('racheter:', e)
-    res.status(500).json({ error: e.message })
+    console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message })
   } finally {
     client.release()
   }
@@ -774,7 +783,7 @@ app.post('/api/streamer/:id/set/:setId/acheterBooster/:viewerId', writeLimiter, 
   } catch(e) {
     await client.query('ROLLBACK')
     console.error('acheterBooster:', e)
-    res.status(500).json({ error: e.message })
+    console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message })
   } finally {
     client.release()
   }
@@ -789,17 +798,16 @@ app.get('/events', async (req, res) => {
   const token    = req.query.token
   if (!viewerId) return res.status(400).end()
 
-  // Vérifier que le token correspond au viewerId
-  if (token) {
-    try {
-      const v = await fetch('https://id.twitch.tv/oauth2/validate', {
-        headers: { 'Authorization': `OAuth ${token}` }
-      })
-      if (!v.ok) return res.status(401).end()
-      const data = await v.json()
-      if (data.user_id !== viewerId) return res.status(403).end()
-    } catch { return res.status(401).end() }
-  }
+  // Token obligatoire — vérifier qu'il correspond au viewerId
+  if (!token) return res.status(401).end()
+  try {
+    const v = await fetch('https://id.twitch.tv/oauth2/validate', {
+      headers: { 'Authorization': `OAuth ${token}` }
+    })
+    if (!v.ok) return res.status(401).end()
+    const data = await v.json()
+    if (data.user_id !== viewerId) return res.status(403).end()
+  } catch { return res.status(401).end() }
 
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
@@ -984,7 +992,7 @@ async function adminAuth(req, res, next) {
     req.adminUser  = { id: data.user_id, login: data.login, display_name: data.login }
     req.adminToken = token
     next()
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 }
 
 // Vérifie que le token Twitch appartient bien au viewerId passé en URL
@@ -1002,7 +1010,7 @@ async function viewerAuth(req, res, next) {
     }
     req.viewerId = data.user_id
     next()
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 }
 
 async function streamerAdminAuth(req, res, next) {
@@ -1018,7 +1026,7 @@ async function streamerAdminAuth(req, res, next) {
     if (!rows[0]) return res.status(403).json({ error: 'Accès refusé' })
     req.streamerId = rows[0].streamer_id
     next()
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 }
 
 async function appToken() {
@@ -1044,7 +1052,7 @@ app.get('/api/me/role', async (req, res) => {
     const { rows } = await db.query('SELECT streamer_id FROM streamer_admins WHERE twitch_id = $1', [data.user_id])
     const streamerId = rows[0]?.streamer_id || null
     res.json({ isAdmin, streamerId, user: { id: data.user_id, login: data.login } })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // Vérifier si l'utilisateur est admin
@@ -1060,7 +1068,7 @@ app.get('/api/admin/eventsub', adminAuth, async (req, res) => {
       headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${tok}` }
     })
     res.json(await r.json())
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 app.post('/api/admin/eventsub', adminAuth, async (req, res) => {
@@ -1081,7 +1089,7 @@ app.post('/api/admin/eventsub', adminAuth, async (req, res) => {
     const data = await r.json()
     if (!r.ok) return res.status(r.status).json(data)
     res.json(data)
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 app.delete('/api/admin/eventsub/:id', adminAuth, async (req, res) => {
@@ -1092,7 +1100,7 @@ app.delete('/api/admin/eventsub/:id', adminAuth, async (req, res) => {
       headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${tok}` }
     })
     res.json({ ok: r.ok || r.status === 404 })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // ── Streamers ──
@@ -1158,7 +1166,7 @@ app.post('/api/admin/streamers', adminAuth, async (req, res) => {
     twitchToStreamer[config.twitch_login] = id
 
     res.json({ ok: true, id, config, twitch: twitchUser })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // ── Supprimer streamer ──
@@ -1179,7 +1187,7 @@ app.delete('/api/admin/streamers/:id', adminAuth, async (req, res) => {
       if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true })
     } catch(_) {}
     res.json({ ok: true })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // ── Sets ──
@@ -1221,7 +1229,7 @@ app.post('/api/admin/streamer/:id/sets', adminAuth, async (req, res) => {
 
     streamers[id].sets[set_id] = { config, cards: [] }
     res.json({ ok: true, config })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 app.delete('/api/admin/streamer/:id/set/:setId', adminAuth, async (req, res) => {
@@ -1234,7 +1242,7 @@ app.delete('/api/admin/streamer/:id/set/:setId', adminAuth, async (req, res) => 
       if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true })
     } catch(_) {}
     res.json({ ok: true })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 app.patch('/api/admin/streamer/:id/set/:setId/config', adminAuth, async (req, res) => {
@@ -1256,7 +1264,7 @@ app.patch('/api/admin/streamer/:id/set/:setId/config', adminAuth, async (req, re
     )
 
     res.json({ ok: true, config: set.config })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // ── Upload image ──
@@ -1270,7 +1278,7 @@ app.post('/api/upload', uploadLimiter, adminAuth, upload.single('image'), async 
       ).end(req.file.buffer)
     })
     res.json({ url: result.secure_url })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 app.post('/api/streamer-admin/upload', uploadLimiter, streamerAdminAuth, upload.single('image'), async (req, res) => {
@@ -1283,7 +1291,7 @@ app.post('/api/streamer-admin/upload', uploadLimiter, streamerAdminAuth, upload.
       ).end(req.file.buffer)
     })
     res.json({ url: result.secure_url })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // ── Cartes (admin) ──
@@ -1313,7 +1321,7 @@ app.post('/api/admin/streamer/:id/set/:setId/cards', adminAuth, async (req, res)
       [id, setId, JSON.stringify(set.config), JSON.stringify(set.cards)]
     )
     res.json({ ok: true, card })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 app.delete('/api/admin/streamer/:id/set/:setId/card/:cardId', adminAuth, async (req, res) => {
@@ -1335,7 +1343,7 @@ app.delete('/api/admin/streamer/:id/set/:setId/card/:cardId', adminAuth, async (
       [id, setId, JSON.stringify(set.config), JSON.stringify(set.cards)]
     )
     res.json({ ok: true })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // ── Récompenses Twitch ──
@@ -1349,7 +1357,7 @@ app.get('/api/admin/streamer/:id/rewards', adminAuth, async (req, res) => {
       headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchUserToken}` }
     })
     res.json(await r.json())
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // ── Approuver une candidature ──
@@ -1399,7 +1407,7 @@ app.post('/api/admin/approve/:contactId', adminAuth, async (req, res) => {
 
     console.log(`Candidature approuvée: ${contact.twitch} → streamer ID: ${id}`)
     res.json({ ok: true, id, config })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // ── Streamer admin : données propres ──
@@ -1435,7 +1443,7 @@ app.patch('/api/streamer-admin/set/:setId/config', streamerAdminAuth, async (req
       [req.streamerId, setId, JSON.stringify(set.config), JSON.stringify(set.cards || [])]
     )
     res.json({ ok: true, config: set.config })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // ── Streamer admin : créer un set ──
@@ -1479,7 +1487,7 @@ app.post('/api/streamer-admin/sets', streamerAdminAuth, async (req, res) => {
 
     s.sets[set_id] = { config, cards: [] }
     res.json({ ok: true, config })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // ── Streamer admin : EventSub ──
@@ -1495,7 +1503,7 @@ app.get('/api/streamer-admin/eventsub', streamerAdminAuth, async (req, res) => {
     const data = await r.json()
     const subs = (data.data || []).filter(sub => sub.condition?.broadcaster_user_id === twitchId)
     res.json({ data: subs })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 app.post('/api/streamer-admin/eventsub', streamerAdminAuth, async (req, res) => {
@@ -1518,7 +1526,7 @@ app.post('/api/streamer-admin/eventsub', streamerAdminAuth, async (req, res) => 
     const data = await r.json()
     if (!r.ok) return res.status(r.status).json({ error: data.message || data.error || 'Erreur Twitch', detail: data })
     res.json(data)
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 app.delete('/api/streamer-admin/eventsub/:id', streamerAdminAuth, async (req, res) => {
@@ -1529,7 +1537,7 @@ app.delete('/api/streamer-admin/eventsub/:id', streamerAdminAuth, async (req, re
       headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${tok}` }
     })
     res.json({ ok: r.ok || r.status === 404 })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // ── Streamer admin : cartes ──
@@ -1564,7 +1572,7 @@ app.post('/api/streamer-admin/set/:setId/cards', streamerAdminAuth, async (req, 
       [req.streamerId, setId, JSON.stringify(set.config), JSON.stringify(set.cards)]
     )
     res.json({ ok: true, card })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 app.patch('/api/streamer-admin/set/:setId/card/:cardId', streamerAdminAuth, async (req, res) => {
@@ -1589,7 +1597,7 @@ app.patch('/api/streamer-admin/set/:setId/card/:cardId', streamerAdminAuth, asyn
       [req.streamerId, setId, JSON.stringify(set.config), JSON.stringify(set.cards)]
     )
     res.json({ ok: true, card })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 app.delete('/api/streamer-admin/set/:setId/card/:cardId', streamerAdminAuth, async (req, res) => {
@@ -1611,7 +1619,7 @@ app.delete('/api/streamer-admin/set/:setId/card/:cardId', streamerAdminAuth, asy
       [req.streamerId, setId, JSON.stringify(set.config), JSON.stringify(set.cards)]
     )
     res.json({ ok: true })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // ── Candidatures ──
@@ -1619,14 +1627,14 @@ app.get('/api/admin/contacts', adminAuth, async (req, res) => {
   try {
     const { rows } = await db.query('SELECT * FROM contact_requests ORDER BY created_at DESC LIMIT 100')
     res.json(rows)
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 app.delete('/api/admin/contacts/:id', adminAuth, async (req, res) => {
   try {
     await db.query('DELETE FROM contact_requests WHERE id = $1', [req.params.id])
     res.json({ ok: true })
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // ── Analytics admin ──
@@ -1636,7 +1644,7 @@ app.get('/api/admin/analytics', adminAuth, async (req, res) => {
       `SELECT page, day, views FROM page_views WHERE day >= CURRENT_DATE - INTERVAL '30 days' ORDER BY day DESC, views DESC`
     )
     res.json(rows)
-  } catch(e) { res.status(500).json({ error: e.message }) }
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
 // ── Pages ──

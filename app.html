@@ -503,6 +503,7 @@
 
 
 <script>
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML }
 const TWITCH_CLIENT_ID = 'w7avkje8ceeuerq3wouq6dh39msysm'
 
 function authHeaders() {
@@ -875,18 +876,18 @@ function construireCarte(carte, streamerId, setId) {
   return `<div style="width:100%;height:100%;display:flex;flex-direction:column;border:2px solid ${couleur};background:#0d0d0d;position:relative;overflow:hidden">
     <div style="height:4px;background:${couleur};flex-shrink:0"></div>
     <div style="flex:1;position:relative;overflow:hidden">
-      <img src="${imgUrl}" alt="${carte.nom}"
+      <img src="${imgUrl}" alt="${esc(carte.nom)}"
            style="width:100%;height:100%;object-fit:contain;display:block"
            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
       <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;flex-direction:column;gap:6px;padding:10px;text-align:center">
         <div style="font-size:10px;color:${couleur};text-transform:uppercase;letter-spacing:.1em;font-weight:700">${carte.type}</div>
-        <div style="font-size:12px;color:#eee;font-weight:900;line-height:1.2">${carte.nom}</div>
-        <div style="font-size:9px;color:${couleur};opacity:.7">${carte.rarete}</div>
+        <div style="font-size:12px;color:#eee;font-weight:900;line-height:1.2">${esc(carte.nom)}</div>
+        <div style="font-size:9px;color:${couleur};opacity:.7">${esc(carte.rarete)}</div>
       </div>
     </div>
     <div style="padding:4px 6px;background:#111;border-top:1px solid ${couleur}55;flex-shrink:0">
-      <div style="font-size:7px;color:${couleur};text-transform:uppercase;letter-spacing:.08em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${carte.rarete}</div>
-      <div style="font-size:8px;color:#ccc;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${carte.nom}</div>
+      <div style="font-size:7px;color:${couleur};text-transform:uppercase;letter-spacing:.08em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(carte.rarete)}</div>
+      <div style="font-size:8px;color:#ccc;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(carte.nom)}</div>
     </div>
   </div>`
 }
@@ -906,18 +907,18 @@ function voirCarte(carteId, streamerId, setId) {
     `<div style="width:100%;height:100%;border:2px solid ${couleurModal};background:#0d0d0d;display:flex;flex-direction:column;overflow:hidden">
       <div style="height:4px;background:${couleurModal};flex-shrink:0"></div>
       <div style="flex:1;position:relative;overflow:hidden">
-        <img src="${imgUrlModal}" alt="${carte.nom}"
+        <img src="${imgUrlModal}" alt="${esc(carte.nom)}"
              style="width:100%;height:100%;object-fit:contain;display:block;image-rendering:high-quality"
              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
         <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;flex-direction:column;gap:8px;padding:16px;text-align:center">
           <div style="font-size:12px;color:${couleurModal};text-transform:uppercase;letter-spacing:.1em;font-weight:700">${carte.type}</div>
-          <div style="font-size:18px;color:#eee;font-weight:900;line-height:1.2">${carte.nom}</div>
-          <div style="font-size:11px;color:${couleurModal};opacity:.7">${carte.rarete}</div>
+          <div style="font-size:18px;color:#eee;font-weight:900;line-height:1.2">${esc(carte.nom)}</div>
+          <div style="font-size:11px;color:${couleurModal};opacity:.7">${esc(carte.rarete)}</div>
         </div>
       </div>
       <div style="padding:8px 10px;background:#111;border-top:1px solid ${couleurModal}55;flex-shrink:0">
-        <div style="font-size:9px;color:${couleurModal};text-transform:uppercase;letter-spacing:.08em;font-weight:700">${carte.rarete}</div>
-        <div style="font-size:11px;color:#ccc;font-weight:700">${carte.nom}</div>
+        <div style="font-size:9px;color:${couleurModal};text-transform:uppercase;letter-spacing:.08em;font-weight:700">${esc(carte.rarete)}</div>
+        <div style="font-size:11px;color:#ccc;font-weight:700">${esc(carte.nom)}</div>
       </div>
     </div>`
 
@@ -935,7 +936,7 @@ function voirCarte(carteId, streamerId, setId) {
   document.getElementById('detailCout').textContent = carte.cout  ?? '—'
   document.getElementById('detailId').textContent   = carte.id
 
-  const caps = (carte.capacites||[]).map(c => `<b>${c.nom}</b> — ${c.texte}`).join('<br>')
+  const caps = (carte.capacites||[]).map(c => `<b>${esc(c.nom)}</b> — ${esc(c.texte)}`).join('<br>')
   const cit  = carte.citation ? `<em style="opacity:.6">${carte.citation}</em>` : ''
   document.getElementById('detailDesc').innerHTML = [caps, cit].filter(Boolean).join('<br><br>')
 
