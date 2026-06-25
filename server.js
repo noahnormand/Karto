@@ -239,6 +239,58 @@ function checkRateLimit(ip) {
   return true
 }
 
+// Lookup Twitch public (rate-limité par IP : 30/min) — utilisé par le form de candidature
+const lookupRateLimit = new Map()
+function checkLookupRate(ip) {
+  const now = Date.now()
+  const entry = lookupRateLimit.get(ip)
+  if (!entry || now > entry.resetAt) {
+    lookupRateLimit.set(ip, { count: 1, resetAt: now + 60 * 1000 })
+    return true
+  }
+  if (entry.count >= 30) return false
+  entry.count++
+  return true
+}
+
+let cachedAppToken = { token: null, expiresAt: 0 }
+async function getAppToken() {
+  if (cachedAppToken.token && Date.now() < cachedAppToken.expiresAt) return cachedAppToken.token
+  const r = await fetch('https://id.twitch.tv/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'client_credentials', client_id: TWITCH_CLIENT_ID, client_secret: TWITCH_CLIENT_SECRET })
+  })
+  const data = await r.json()
+  cachedAppToken = { token: data.access_token, expiresAt: Date.now() + (data.expires_in - 60) * 1000 }
+  return data.access_token
+}
+
+app.get('/api/twitch/user/:login', async (req, res) => {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || ''
+  if (!checkLookupRate(ip)) return res.status(429).json({ error: 'Trop de requêtes' })
+
+  const login = (req.params.login || '').toLowerCase().trim()
+  if (!/^[a-z0-9_]{1,25}$/.test(login)) return res.status(400).json({ error: 'Login invalide' })
+
+  try {
+    const tok = await getAppToken()
+    const r = await fetch(`https://api.twitch.tv/helix/users?login=${login}`, {
+      headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${tok}` }
+    })
+    const data = await r.json()
+    const user = data.data?.[0]
+    if (!user) return res.status(404).json({ error: 'Streamer introuvable' })
+    res.json({
+      id: user.id,
+      login: user.login,
+      display_name: user.display_name,
+      profile_image_url: user.profile_image_url,
+      broadcaster_type: user.broadcaster_type // '', 'affiliate', 'partner'
+    })
+  } catch(e) { res.status(500).json({ error: e.message }) }
+})
+
 // Notif Discord (no-op si DISCORD_WEBHOOK_URL non configuré)
 async function notifyDiscord(payload) {
   const url = process.env.DISCORD_WEBHOOK_URL
@@ -282,20 +334,42 @@ app.post('/api/contact', async (req, res) => {
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `)
+    // migration : ajoute les colonnes enrichies si absentes
+    await db.query(`ALTER TABLE contact_requests ADD COLUMN IF NOT EXISTS twitch_id TEXT`)
+    await db.query(`ALTER TABLE contact_requests ADD COLUMN IF NOT EXISTS display_name TEXT`)
+    await db.query(`ALTER TABLE contact_requests ADD COLUMN IF NOT EXISTS avatar_url TEXT`)
+    await db.query(`ALTER TABLE contact_requests ADD COLUMN IF NOT EXISTS broadcaster_type TEXT`)
+
+    // Re-valide le login côté serveur pour éviter qu'un client malicieux envoie des données bidon
+    let verifiedUser = null
+    try {
+      const tok = await getAppToken()
+      const r = await fetch(`https://api.twitch.tv/helix/users?login=${twitch.trim().toLowerCase()}`, {
+        headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${tok}` }
+      })
+      verifiedUser = (await r.json()).data?.[0] || null
+    } catch(_) {}
+    if (!verifiedUser) return res.status(400).json({ error: 'Login Twitch introuvable.' })
+
     await db.query(
-      'INSERT INTO contact_requests (twitch, email, tcg_url, message, ip) VALUES ($1, $2, $3, $4, $5)',
-      [twitch.trim(), email.trim(), tcg_url?.trim() || null, message?.trim() || null, ip]
+      'INSERT INTO contact_requests (twitch, email, tcg_url, message, ip, twitch_id, display_name, avatar_url, broadcaster_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+      [verifiedUser.login, email.trim(), tcg_url?.trim() || null, message?.trim() || null, ip, verifiedUser.id, verifiedUser.display_name, verifiedUser.profile_image_url, verifiedUser.broadcaster_type || '']
     )
     console.log(`Nouvelle candidature streamer: ${twitch} (${email})`)
 
     // Notif Discord (best effort, n'empêche pas la réponse OK)
+    const statutLabel = verifiedUser.broadcaster_type === 'partner' ? '🤝 Partenaire'
+                      : verifiedUser.broadcaster_type === 'affiliate' ? '✅ Affilié'
+                      : '⚠️ Non affilié'
     notifyDiscord({
       username: 'Karto',
       embeds: [{
         title: '🎴 Nouvelle candidature streamer',
-        color: 0x9146ff,
+        color: verifiedUser.broadcaster_type ? 0x9146ff : 0xeab308,
+        thumbnail: { url: verifiedUser.profile_image_url },
         fields: [
-          { name: 'Twitch', value: twitch.trim(), inline: true },
+          { name: 'Streamer', value: `**${verifiedUser.display_name}** ([twitch.tv/${verifiedUser.login}](https://twitch.tv/${verifiedUser.login}))`, inline: false },
+          { name: 'Statut Twitch', value: statutLabel, inline: true },
           { name: 'Email',  value: email.trim(),  inline: true },
           { name: 'TCG',    value: tcg_url?.trim() || '—', inline: false },
           { name: 'Message', value: (message?.trim() || '—').slice(0, 1000), inline: false }
@@ -1309,6 +1383,7 @@ app.post('/api/streamer-admin/set/:setId/cards', streamerAdminAuth, async (req, 
     const cardId = nom.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '_') + '_' + Date.now()
     const card = { id: cardId, nom: nom.trim(), rarete, image: image?.trim() || '' }
 
+    set.cards.push(card)
     set.cards.push(card)
 
     try {

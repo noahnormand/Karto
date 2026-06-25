@@ -398,7 +398,9 @@
         <div class="hp-field"><input type="text" name="website" tabindex="-1" autocomplete="off" /></div>
         <div class="form-group">
           <label>Login Twitch *</label>
-          <input type="text" name="twitch" placeholder="ton_login" required />
+          <input type="text" name="twitch" id="twitchInput" placeholder="ton_login" required autocomplete="off" />
+          <div id="twitchPreview" style="margin-top:10px;display:none;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);background:var(--white)"></div>
+          <div id="twitchHint" style="margin-top:6px;font-size:12px;color:var(--gray)"></div>
         </div>
         <div class="form-group">
           <label>Email *</label>
@@ -431,6 +433,57 @@
     document.getElementById('mobileMenu').classList.toggle('open')
   }
 
+  // ── Validation live login Twitch ──
+  const twitchInput = document.getElementById('twitchInput')
+  const twitchPreview = document.getElementById('twitchPreview')
+  const twitchHint = document.getElementById('twitchHint')
+  let twitchVerified = null
+  let twitchTimer = null
+
+  function renderPreview(user) {
+    twitchVerified = user
+    const statut = user.broadcaster_type === 'partner'   ? { txt: 'Partenaire',   bg: '#ede9fe', color: '#6d28d9' }
+                 : user.broadcaster_type === 'affiliate' ? { txt: 'Affilié',      bg: '#dcfce7', color: '#1a7f37' }
+                 :                                          { txt: 'Non affilié', bg: '#fef3c7', color: '#92400e' }
+    twitchPreview.innerHTML = `
+      <img src="${user.profile_image_url}" style="width:42px;height:42px;border:1px solid var(--border);object-fit:cover" alt="">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px">${user.display_name}</div>
+        <div style="font-size:12px;color:var(--gray)">twitch.tv/${user.login}</div>
+      </div>
+      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:3px 8px;background:${statut.bg};color:${statut.color};border:1px solid ${statut.color}40">${statut.txt}</span>
+    `
+    twitchPreview.style.display = 'flex'
+    twitchHint.textContent = user.broadcaster_type
+      ? '✓ Compte vérifié.'
+      : '⚠ Ton compte n\'est pas Affilié — les points de chaîne Twitch ne marchent que pour les Affiliés et Partenaires.'
+    twitchHint.style.color = user.broadcaster_type ? 'var(--gray)' : '#92400e'
+  }
+
+  function clearPreview(msg) {
+    twitchVerified = null
+    twitchPreview.style.display = 'none'
+    twitchPreview.innerHTML = ''
+    twitchHint.textContent = msg || ''
+    twitchHint.style.color = '#cc0000'
+  }
+
+  twitchInput.addEventListener('input', () => {
+    clearTimeout(twitchTimer)
+    const login = twitchInput.value.trim().toLowerCase()
+    if (!login) { clearPreview(''); return }
+    if (!/^[a-z0-9_]{1,25}$/.test(login)) { clearPreview('Login invalide (lettres, chiffres, _ uniquement).'); return }
+    twitchHint.textContent = 'Vérification…'
+    twitchHint.style.color = 'var(--gray)'
+    twitchTimer = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/twitch/user/${encodeURIComponent(login)}`)
+        if (r.ok) renderPreview(await r.json())
+        else clearPreview('Streamer Twitch introuvable.')
+      } catch { clearPreview('Erreur réseau, réessaie.') }
+    }, 400)
+  })
+
   document.getElementById('contactForm').addEventListener('submit', async (e) => {
     e.preventDefault()
     const form    = e.target
@@ -453,6 +506,12 @@
       return
     }
 
+    if (!twitchVerified) {
+      error.textContent    = 'Vérifie ton login Twitch (attends que ton profil s\'affiche).'
+      error.style.display  = 'block'
+      return
+    }
+
     const btn = form.querySelector('button[type="submit"]')
     btn.disabled    = true
     btn.textContent = 'Envoi en cours...'
@@ -465,6 +524,7 @@
       })
       if (res.ok) {
         form.reset()
+        clearPreview('')
         success.style.display = 'block'
       } else {
         const json = await res.json().catch(() => ({}))

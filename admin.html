@@ -961,14 +961,28 @@ async function loadContacts() {
   try {
     const rows = await api('/api/admin/contacts')
     if (!rows.length) { el.innerHTML = '<div class="empty">Aucune candidature pour le moment.</div>'; return }
+    const statutTag = (t) => t === 'partner'   ? '<span class="tag" style="background:#ede9fe;border-color:#c4b5fd;color:#6d28d9">Partenaire</span>'
+                           : t === 'affiliate' ? '<span class="tag green">Affilié</span>'
+                           : '<span class="tag yellow">Non affilié</span>'
     el.innerHTML = `<table>
-      <thead><tr><th>Date</th><th>Twitch</th><th>Email</th><th>TCG</th><th>Message</th><th></th></tr></thead>
+      <thead><tr><th>Date</th><th>Streamer</th><th>Statut</th><th>Email</th><th>TCG</th><th>Message</th><th></th></tr></thead>
       <tbody>${rows.map(r => `<tr>
         <td class="mono">${new Date(r.created_at).toLocaleDateString('fr-FR')}</td>
-        <td><strong>${r.twitch}</strong></td>
+        <td>
+          <div style="display:flex;align-items:center;gap:10px">
+            ${r.avatar_url ? `<img src="${r.avatar_url}" style="width:32px;height:32px;border:1px solid var(--border);object-fit:cover">` : ''}
+            <div>
+              <div><strong>${r.display_name || r.twitch}</strong></div>
+              <div class="mono" style="font-size:11px">
+                <a href="https://twitch.tv/${r.twitch}" target="_blank" style="color:var(--purple)">twitch.tv/${r.twitch}</a>
+              </div>
+            </div>
+          </div>
+        </td>
+        <td>${statutTag(r.broadcaster_type)}</td>
         <td>${r.email}</td>
         <td>${r.tcg_url ? `<a href="${r.tcg_url}" target="_blank" style="color:var(--purple);text-decoration:underline">Voir →</a>` : '—'}</td>
-        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.message || '—'}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.message||'').replace(/"/g,'&quot;')}">${r.message || '—'}</td>
         <td style="text-align:right">
           <div style="display:flex;gap:6px;justify-content:flex-end">
             <button class="btn sm primary" onclick="approuverCandidature(${r.id}, '${r.twitch}')">Approuver</button>
