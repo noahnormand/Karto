@@ -643,16 +643,39 @@ function showApp() {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
+let _sessionExpired = false
+function handleSessionExpired() {
+  if (_sessionExpired) return
+  _sessionExpired = true
+  localStorage.removeItem('twitch_token')
+  localStorage.removeItem('twitch_user')
+  token = null; currentUser = null; streamerData = null
+  alert('Session Twitch expirée — tu vas être redirigé vers la connexion.')
+  connexionTwitch()
+}
+
 async function api(url, opts = {}) {
   const r = await fetch(url, {
     ...opts,
     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers || {}) },
     body: opts.body ? JSON.stringify(opts.body) : undefined
   })
+  if (r.status === 401) { handleSessionExpired(); throw new Error('session_expired') }
   const data = await r.json().catch(() => ({}))
   if (!r.ok) throw Object.assign(new Error(data.message || data.error || r.status), { status: r.status })
   return data
 }
+
+// Revalider le token quand l'onglet redevient actif
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden || !token) return
+  try {
+    const r = await fetch('https://id.twitch.tv/oauth2/validate', {
+      headers: { 'Authorization': `OAuth ${token}` }
+    })
+    if (!r.ok) handleSessionExpired()
+  } catch {}
+})
 
 function showMsg(id, type, text) {
   const el = document.getElementById(id)
@@ -706,6 +729,7 @@ async function registerEventsub() {
     const resp = await fetch(`https://api.twitch.tv/helix/users?login=${login}`, {
       headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': TWITCH_CLIENT_ID }
     })
+    if (resp.status === 401) { handleSessionExpired(); return }
     const user = (await resp.json()).data?.[0]
     if (!user) throw new Error('Streamer introuvable sur Twitch')
     await api('/api/admin/eventsub', { method: 'POST', body: { broadcaster_id: user.id } })
@@ -1250,6 +1274,7 @@ async function loadStreamerRewards() {
     const r = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${streamerData.config.twitch_id}`, {
       headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': TWITCH_CLIENT_ID }
     })
+    if (r.status === 401) { handleSessionExpired(); return }
     const data = await r.json()
     if (!r.ok) throw new Error(data.message || `Erreur ${r.status} — vérifie que tu es bien connecté avec ton compte Twitch de streamer`)
     const rewards = data.data || []

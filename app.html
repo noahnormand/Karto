@@ -512,6 +512,34 @@ function authHeaders() {
   return h
 }
 
+let _sessionExpired = false
+function handleSessionExpired() {
+  if (_sessionExpired) return
+  _sessionExpired = true
+  localStorage.removeItem('twitch_token')
+  localStorage.removeItem('twitch_user')
+  utilisateurConnecte = null
+  toast('Session expirée — reconnexion…', 'rouge')
+  setTimeout(() => connexionTwitch(), 1500)
+}
+
+async function fetchAuth(url, opts = {}) {
+  const r = await fetch(url, opts)
+  if (r.status === 401) { handleSessionExpired(); throw new Error('session_expired') }
+  return r
+}
+
+// Revalider le token quand l'onglet redevient actif
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden || !localStorage.getItem('twitch_token')) return
+  try {
+    const r = await fetch('https://id.twitch.tv/oauth2/validate', {
+      headers: { 'Authorization': `OAuth ${localStorage.getItem('twitch_token')}` }
+    })
+    if (!r.ok) handleSessionExpired()
+  } catch {}
+})
+
 function toast(msg, type = '') {
   const el = document.createElement('div')
   el.className = 'toast' + (type ? ' ' + type : '')
@@ -561,9 +589,11 @@ async function verifierConnexion() {
 
 async function chargerUtilisateur(token) {
   try {
-    const data = await fetch('https://api.twitch.tv/helix/users', {
+    const resp = await fetch('https://api.twitch.tv/helix/users', {
       headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': TWITCH_CLIENT_ID }
-    }).then(r => r.json())
+    })
+    if (resp.status === 401) { handleSessionExpired(); return }
+    const data = await resp.json()
     utilisateurConnecte = data.data[0]
     localStorage.setItem('twitch_user', JSON.stringify(utilisateurConnecte))
     const redirect = sessionStorage.getItem('redirectAfterLogin')
@@ -940,7 +970,7 @@ async function desenchanterCarte() {
   if (!carteDetailCourante || !utilisateurConnecte) return
   const { carte, streamerId, setId } = carteDetailCourante
   try {
-    const r = await fetch(`/api/streamer/${streamerId}/set/${setId}/desenchanter/${utilisateurConnecte.id}`, {
+    const r = await fetchAuth(`/api/streamer/${streamerId}/set/${setId}/desenchanter/${utilisateurConnecte.id}`, {
       method: 'POST', headers: authHeaders(),
       body: JSON.stringify({ carteId: carte.id })
     })
@@ -1074,7 +1104,7 @@ async function racheterBooster(boosterType) {
   if (!utilisateurConnecte || !setActif) return
   const { streamerId, setId } = setActif
   try {
-    const r = await fetch(`/api/streamer/${streamerId}/set/${setId}/acheterBooster/${utilisateurConnecte.id}`, {
+    const r = await fetchAuth(`/api/streamer/${streamerId}/set/${setId}/acheterBooster/${utilisateurConnecte.id}`, {
       method: 'POST', headers: authHeaders(),
       body: JSON.stringify({ boosterType })
     })
@@ -1156,10 +1186,10 @@ async function ouvrirPackInventaire(boosterId) {
   if (qty < 1) return toast('Aucun pack disponible', 'rouge')
   packsInventaire[streamerId][setId][boosterId]--
   if (utilisateurConnecte) {
-    const r = await fetch(`/api/packs/${utilisateurConnecte.id}/use`, {
+    const r = await fetchAuth(`/api/packs/${utilisateurConnecte.id}/use`, {
       method: 'POST', headers: authHeaders(),
       body: JSON.stringify({ streamerId, setId, boosterType: boosterId })
-    }).catch(e => { console.error('/use fetch erreur:', e); return null })
+    }).catch(e => { if (e.message === 'session_expired') return null; console.error('/use fetch erreur:', e); return null })
     if (r && !r.ok) {
       const err = await r.json().catch(() => ({}))
       console.error('/use erreur:', err)
@@ -1310,7 +1340,7 @@ async function ajouterACollection() {
   toast(`${cartes.length} cartes ajoutées — ${sNom} !`)
   if (!utilisateurConnecte) return
   try {
-    await fetch(`/api/streamer/${streamerId}/set/${setId}/collection/${utilisateurConnecte.id}`, {
+    await fetchAuth(`/api/streamer/${streamerId}/set/${setId}/collection/${utilisateurConnecte.id}`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ cartes: cartes.map(c => c.id) })
