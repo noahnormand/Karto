@@ -1511,14 +1511,29 @@ app.get('/api/streamer-admin/rewards', streamerAdminAuth, async (req, res) => {
     if (!s) return res.status(404).json({ error: 'Streamer introuvable' })
     const twitchId = s.config.twitch_id
     if (!twitchId) return res.status(400).json({ error: 'twitch_id manquant' })
+    const url = `https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${twitchId}`
     const userToken = (req.headers.authorization || '').replace('Bearer ', '')
-    const r = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${twitchId}`, {
+    // Try with streamer's own token first
+    let r = await fetch(url, {
       headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${userToken}` }
     })
+    // Fallback to server admin token if streamer token fails (e.g. not affiliated)
+    if (!r.ok && twitchUserToken) {
+      r = await fetch(url, {
+        headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchUserToken}` }
+      })
+      if (r.status === 401) {
+        const ok = await refreshTwitchToken()
+        if (ok) {
+          r = await fetch(url, {
+            headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchUserToken}` }
+          })
+        }
+      }
+    }
     if (!r.ok) {
-      // Map Twitch 401 → 403 so front-end doesn't trigger session-expired
       const clientStatus = r.status === 401 ? 403 : r.status
-      return res.status(clientStatus).json({ error: 'Erreur Twitch API — points de chaîne non accessibles', status: r.status })
+      return res.status(clientStatus).json({ error: 'Points de chaîne non accessibles', status: r.status })
     }
     res.json(await r.json())
   } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
