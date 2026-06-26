@@ -182,7 +182,7 @@ async function loadStreamersFromDB() {
 
 const db = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: prod ? { rejectUnauthorized: false } : false
+  ssl: prod ? { rejectUnauthorized: true } : false
 })
 
 async function initDB() {
@@ -797,10 +797,11 @@ const sseClients = new Map() // viewerId -> [res, ...]
 
 app.get('/events', async (req, res) => {
   const viewerId = req.query.viewerId
-  const token    = req.query.token
   if (!viewerId) return res.status(400).end()
 
-  // Token obligatoire — vérifier qu'il correspond au viewerId
+  // Token via header Authorization (Bearer) — plus sécurisé que query string
+  const authHeader = req.headers.authorization || ''
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
   if (!token) return res.status(401).end()
   try {
     const v = await fetch('https://id.twitch.tv/oauth2/validate', {

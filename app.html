@@ -1544,20 +1544,41 @@ function lancerParticules() {
   }
 }
 
+let sseAbort = null
 function connecterSSE() {
   if (!utilisateurConnecte) return
+  if (sseAbort) sseAbort.abort()
+  sseAbort = new AbortController()
   const tok = localStorage.getItem('twitch_token')
-  const es = new EventSource(`/events?viewerId=${utilisateurConnecte.id}${tok ? '&token=' + tok : ''}`)
-  es.onmessage = e => {
-    try {
-      const msg = JSON.parse(e.data)
-      if (msg.type === 'pack_recu') {
-        recevoirPack(msg.streamerId, msg.setId, msg.booster)
-        toast('🎁 Pack reçu : ' + msg.booster + ' — ' + msg.streamerId + '/' + msg.setId + ' !', 'vert')
+  if (!tok) return
+  fetch(`/events?viewerId=${utilisateurConnecte.id}`, {
+    headers: { 'Authorization': `Bearer ${tok}` },
+    signal: sseAbort.signal
+  }).then(async res => {
+    if (!res.ok) { setTimeout(connecterSSE, 5000); return }
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop()
+      for (const line of lines) {
+        if (!line.startsWith('data:')) continue
+        try {
+          const msg = JSON.parse(line.slice(5).trim())
+          if (msg.type === 'pack_recu') {
+            recevoirPack(msg.streamerId, msg.setId, msg.booster)
+            toast('🎁 Pack reçu : ' + msg.booster + ' — ' + msg.streamerId + '/' + msg.setId + ' !', 'vert')
+          }
+        } catch (_) {}
       }
-    } catch (_) {}
-  }
-  es.onerror = () => { es.close(); setTimeout(connecterSSE, 5000) }
+    }
+  }).catch(e => {
+    if (e.name !== 'AbortError') setTimeout(connecterSSE, 5000)
+  })
 }
 
 chargerStreamers().then(() => verifierConnexion())
