@@ -1515,7 +1515,11 @@ app.get('/api/streamer-admin/rewards', streamerAdminAuth, async (req, res) => {
     const r = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${twitchId}`, {
       headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${userToken}` }
     })
-    if (!r.ok) return res.status(r.status).json({ error: 'Erreur Twitch API', status: r.status })
+    if (!r.ok) {
+      // Map Twitch 401 → 403 so front-end doesn't trigger session-expired
+      const clientStatus = r.status === 401 ? 403 : r.status
+      return res.status(clientStatus).json({ error: 'Erreur Twitch API — points de chaîne non accessibles', status: r.status })
+    }
     res.json(await r.json())
   } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })

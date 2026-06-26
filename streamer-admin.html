@@ -530,11 +530,20 @@ async function api(url, opts = {}) {
     body: opts.body ? (isFormData ? opts.body : JSON.stringify(opts.body)) : undefined
   })
   if (r.status === 401) {
-    localStorage.removeItem('twitch_token')
-    token = null
-    alert('Session expirée — reconnecte-toi.')
-    window.location.reload()
-    throw new Error('session_expired')
+    // Double-check: validate token before killing session
+    const v = await fetch('https://id.twitch.tv/oauth2/validate', {
+      headers: { 'Authorization': 'OAuth ' + token }
+    }).catch(() => ({ ok: false }))
+    if (!v.ok) {
+      localStorage.removeItem('twitch_token')
+      token = null
+      alert('Session expirée — reconnecte-toi.')
+      window.location.reload()
+      throw new Error('session_expired')
+    }
+    // Token still valid, error is from Twitch API (e.g. not affiliated)
+    const data = await r.json().catch(() => ({}))
+    throw Object.assign(new Error(data.message || data.error || 'Erreur ' + r.status), { status: r.status })
   }
   const data = await r.json().catch(() => ({}))
   if (!r.ok) throw Object.assign(new Error(data.message || data.error || ('Erreur ' + r.status)), { status: r.status })
@@ -971,10 +980,21 @@ async function loadTwitchRewards() {
   const sel = document.getElementById('r-reward-sel')
   sel.innerHTML = '<option value="">Chargement…</option>'
   try {
-    const data = await api('/api/streamer-admin/rewards')
+    const r = await fetch('/api/streamer-admin/rewards', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    })
+    if (r.status === 403 || r.status === 400) {
+      sel.innerHTML = '<option value="">Points de chaîne non disponibles (affiliation requise)</option>'
+      return
+    }
+    if (!r.ok) {
+      sel.innerHTML = '<option value="">Erreur de chargement</option>'
+      return
+    }
+    const data = await r.json()
     twitchRewards = data.data || []
     if (!twitchRewards.length) {
-      sel.innerHTML = '<option value="">Aucune récompense trouvée</option>'
+      sel.innerHTML = '<option value="">Aucune récompense — crée-en une sur Twitch</option>'
       return
     }
     sel.innerHTML = '<option value="">— Choisir —</option>' + twitchRewards.map(r =>
