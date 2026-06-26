@@ -688,8 +688,14 @@ function basculerEtat(connecte) {
       <div class="flex items-center gap-unit border border-primary p-unit bg-surface-container-lowest">
         <img src="${utilisateurConnecte.profile_image_url}" class="w-8 h-8 border border-primary object-cover"/>
         <span class="font-label-caps text-label-caps uppercase px-unit">${utilisateurConnecte.display_name}</span>
+        <a href="/admin" id="adminLink" class="font-mono-label text-mono-label border border-outline-variant px-2 py-px text-outline hover:bg-surface-variant" style="display:none">Admin</a>
         <button onclick="deconnexion()" class="font-mono-label text-mono-label border border-outline-variant px-2 py-px text-outline hover:bg-surface-variant ml-1">Déco</button>
       </div>`
+    // Check admin
+    const adminTok = localStorage.getItem('twitch_token')
+    if (adminTok) fetch('/api/admin/check', { headers: { 'Authorization': `Bearer ${adminTok}` } })
+      .then(r => { if (r.ok) document.getElementById('adminLink').style.display = '' })
+      .catch(() => {})
   } else {
     zone.innerHTML = `
       <button onclick="connexionTwitch()" class="bg-secondary-container text-on-primary font-label-caps text-label-caps uppercase px-gutter py-unit border border-primary hover:opacity-80 flex items-center gap-2">
