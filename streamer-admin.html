@@ -412,9 +412,9 @@
         <div class="section-head"><h2>Lier une récompense Twitch</h2></div>
         <div class="section-body">
           <div class="alert info" style="margin-top:0;margin-bottom:16px">
-            Récupère l'ID de ta récompense de points de chaîne depuis ton tableau de bord Twitch
-            (<a href="https://dashboard.twitch.tv/" target="_blank" style="color:var(--purple);text-decoration:underline">dashboard.twitch.tv</a>
-            → Gestion de la chaîne → Points de chaîne → ID de la récompense).
+            Sélectionne une récompense de points de chaîne Twitch à lier à un set.
+            Crée tes récompenses depuis <a href="https://dashboard.twitch.tv/" target="_blank" style="color:var(--purple);text-decoration:underline">dashboard.twitch.tv</a>
+            → Gestion de la chaîne → Points de chaîne.
           </div>
           <div class="form-grid" style="grid-template-columns:1fr 1fr">
             <div class="field">
@@ -422,8 +422,8 @@
               <select id="r-set-sel"></select>
             </div>
             <div class="field">
-              <label>ID de la récompense Twitch *</label>
-              <input id="r-reward-id" type="text" placeholder="ex: a1b2c3d4-…">
+              <label>Récompense Twitch *</label>
+              <select id="r-reward-sel"><option value="">Chargement…</option></select>
             </div>
           </div>
           <div class="form-actions">
@@ -555,7 +555,7 @@ function switchTab(name, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
   document.getElementById('tab-' + name).classList.add('active')
   btn.classList.add('active')
-  if (name === 'recompenses') { loadEventsub(); populateRewardSetSel() }
+  if (name === 'recompenses') { loadEventsub(); populateRewardSetSel(); loadTwitchRewards() }
   if (name === 'cartes') { populateCartesSetSel(); loadCartes() }
 }
 
@@ -934,15 +934,17 @@ async function loadEventsub() {
       return
     }
     el.innerHTML = `<table>
-      <thead><tr><th>Set</th><th>Reward ID</th><th>Statut</th><th></th></tr></thead>
+      <thead><tr><th>Set</th><th>Récompense</th><th>Statut</th><th></th></tr></thead>
       <tbody>${subs.map(sub => {
         const st = sub.status === 'enabled' ? 'green' : sub.status?.includes('pending') ? 'yellow' : 'red'
         const stLabel = sub.status === 'enabled' ? 'Actif' : sub.status?.includes('pending') ? 'En attente' : 'Erreur'
         const setId = sub.setId || sub.condition?.reward_id || '—'
         const rewardId = sub.rewardId || sub.condition?.reward_id || '—'
+        const reward = twitchRewards.find(r => r.id === rewardId)
+        const rewardLabel = reward ? `${reward.title} (${reward.cost} pts)` : rewardId
         return `<tr>
           <td class="mono">${esc(setId)}</td>
-          <td class="mono">${esc(rewardId)}</td>
+          <td>${esc(rewardLabel)}</td>
           <td><span class="dot ${st}"></span><span class="tag ${st}">${esc(stLabel)}</span></td>
           <td style="text-align:right">
             <button class="btn danger sm" onclick="deleteEventsub('${esc(sub.id)}')">Supprimer</button>
@@ -963,11 +965,32 @@ async function deleteEventsub(id) {
   } catch(e) { alert(e.message) }
 }
 
+let twitchRewards = []
+
+async function loadTwitchRewards() {
+  const sel = document.getElementById('r-reward-sel')
+  sel.innerHTML = '<option value="">Chargement…</option>'
+  try {
+    const data = await api('/api/streamer-admin/rewards')
+    twitchRewards = data.data || []
+    if (!twitchRewards.length) {
+      sel.innerHTML = '<option value="">Aucune récompense trouvée</option>'
+      return
+    }
+    sel.innerHTML = '<option value="">— Choisir —</option>' + twitchRewards.map(r =>
+      `<option value="${esc(r.id)}">${esc(r.title)} (${r.cost} pts)</option>`
+    ).join('')
+  } catch(e) {
+    sel.innerHTML = '<option value="">Erreur de chargement</option>'
+    console.error('loadTwitchRewards', e)
+  }
+}
+
 async function linkReward() {
   const setId    = document.getElementById('r-set-sel').value
-  const rewardId = document.getElementById('r-reward-id').value.trim()
+  const rewardId = document.getElementById('r-reward-sel').value
   if (!setId)    return showMsg('r-msg', 'error', 'Sélectionne un set')
-  if (!rewardId) return showMsg('r-msg', 'error', 'Saisis l\'ID de la récompense Twitch')
+  if (!rewardId) return showMsg('r-msg', 'error', 'Sélectionne une récompense Twitch')
 
   const lbl = document.getElementById('r-btn-label')
   lbl.innerHTML = '<span class="spinner"></span>'
@@ -975,8 +998,9 @@ async function linkReward() {
     await api('/api/streamer-admin/eventsub', {
       method: 'POST', body: { setId, rewardId }
     })
-    showMsg('r-msg', 'success', `✓ Récompense liée au set <strong>${esc(setId)}</strong>`)
-    document.getElementById('r-reward-id').value = ''
+    const reward = twitchRewards.find(r => r.id === rewardId)
+    showMsg('r-msg', 'success', `✓ "${esc(reward?.title || rewardId)}" liée au set <strong>${esc(setId)}</strong>`)
+    document.getElementById('r-reward-sel').value = ''
     await reloadMe()
     loadEventsub()
   } catch(e) { showMsg('r-msg', 'error', esc(e.message)) }

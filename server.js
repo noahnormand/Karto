@@ -1504,6 +1504,22 @@ app.post('/api/streamer-admin/sets', streamerAdminAuth, async (req, res) => {
   } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
 
+// ── Streamer admin : Rewards Twitch ──
+app.get('/api/streamer-admin/rewards', streamerAdminAuth, async (req, res) => {
+  try {
+    const s = streamers[req.streamerId]
+    if (!s) return res.status(404).json({ error: 'Streamer introuvable' })
+    const twitchId = s.config.twitch_id
+    if (!twitchId) return res.status(400).json({ error: 'twitch_id manquant' })
+    const userToken = (req.headers.authorization || '').replace('Bearer ', '')
+    const r = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${twitchId}`, {
+      headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${userToken}` }
+    })
+    if (!r.ok) return res.status(r.status).json({ error: 'Erreur Twitch API', status: r.status })
+    res.json(await r.json())
+  } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
+})
+
 // ── Streamer admin : EventSub ──
 app.get('/api/streamer-admin/eventsub', streamerAdminAuth, async (req, res) => {
   try {
