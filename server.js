@@ -1719,7 +1719,8 @@ app.get('/robots.txt', (_req, res) => {
 
 app.get('/',      (_req, res) => res.sendFile(path.resolve('index.html')))
 app.get('/app',   (_req, res) => res.sendFile(path.resolve('app.html')))
-app.get('/admin', (_req, res) => res.sendFile(path.resolve('admin.html')))
+app.get('/admin',          (_req, res) => res.sendFile(path.resolve('admin.html')))
+app.get('/streamer-admin', (_req, res) => res.sendFile(path.resolve('streamer-admin.html')))
 
 // ── 404 ──────────────────────────────────────────────────────────────────────
 app.use((req, res) => {

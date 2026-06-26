@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Karto — Streamer</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+
+  :root {
+    --bg:     #f0f0f0;
+    --white:  #ffffff;
+    --black:  #111111;
+    --gray:   #666666;
+    --border: #cacaca;
+    --purple: #9146ff;
+    --green:  #1a7f37;
+    --red:    #cf222e;
+  }
+
+  html { scroll-behavior: smooth }
+  body {
+    background: var(--bg);
+    color: var(--black);
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image: repeating-linear-gradient(-45deg, transparent, transparent 6px, rgba(0,0,0,0.022) 6px, rgba(0,0,0,0.022) 7px);
+  }
+  * { position: relative; z-index: 1 }
+  a { color: inherit; text-decoration: none }
+
+  /* ── Nav ── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 60px; padding: 0 48px;
+    background: var(--bg); border-bottom: 1px solid var(--black);
+  }
+  .nav-logo { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em }
+  .nav-logo span { color: var(--purple) }
+  .nav-right { display: flex; align-items: center; gap: 20px }
+  .nav-user { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gray) }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; border: 1px solid var(--black); background: var(--white); color: var(--black); transition: all .15s }
+  .btn:hover { background: var(--black); color: var(--white) }
+  .btn.primary { background: var(--black); color: var(--white) }
+  .btn.primary:hover { opacity: .8 }
+  .btn.purple { background: var(--purple); color: var(--white); border-color: var(--purple) }
+  .btn.purple:hover { opacity: .85 }
+  .btn.danger { background: var(--white); color: var(--red); border-color: var(--red) }
+  .btn.danger:hover { background: var(--red); color: var(--white) }
+  .btn.sm { padding: 5px 10px; font-size: 11px }
+  .btn svg { width: 14px; height: 14px; fill: currentColor; flex-shrink: 0 }
+
+  /* ── Login ── */
+  #login {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; gap: 24px; text-align: center; padding: 24px;
+  }
+  #login h1 { font-size: clamp(32px, 6vw, 64px); font-weight: 900; text-transform: uppercase; letter-spacing: -0.03em; line-height: 1 }
+  #login h1 span { color: var(--purple) }
+  #login p { font-size: 14px; color: var(--gray); max-width: 360px }
+  .btn-twitch {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--purple); color: #fff;
+    padding: 12px 24px; font-size: 13px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    border: none; cursor: pointer; transition: opacity .15s;
+  }
+  .btn-twitch:hover { opacity: .85 }
+  .btn-twitch svg { width: 16px; height: 16px; fill: #fff }
+  #loginError { font-size: 13px; color: var(--red); font-weight: 600 }
+
+  /* ── App ── */
+  #app { display: none; padding-top: 60px }
+  #app.visible { display: block }
+
+  /* ── Tabs ── */
+  .tab-bar {
+    background: var(--bg); border-bottom: 1px solid var(--black);
+    display: flex; padding: 0 48px; overflow-x: auto;
+  }
+  .tab-btn {
+    background: none; border: none; border-bottom: 2px solid transparent;
+    padding: 16px 20px; font-family: 'Inter', sans-serif;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--gray); cursor: pointer; white-space: nowrap;
+    transition: all .15s;
+  }
+  .tab-btn:hover { color: var(--black) }
+  .tab-btn.active { color: var(--black); border-bottom-color: var(--black) }
+
+  /* ── Content ── */
+  .tab { display: none }
+  .tab.active { display: block }
+
+  .page { max-width: 960px; margin: 0 auto; padding: 48px }
+
+  .section { border: 1px solid var(--black); background: var(--white); margin-bottom: 24px }
+  .section-head {
+    padding: 20px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .section-head h2 { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em }
+  .section-body { padding: 24px }
+
+  /* ── Form ── */
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px }
+  .field { display: flex; flex-direction: column; gap: 6px }
+  .field label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gray) }
+  input[type=text], input[type=number], input[type=email], select, textarea {
+    background: var(--bg); border: 1px solid var(--black);
+    color: var(--black); padding: 9px 12px;
+    font-family: 'Inter', sans-serif; font-size: 13px; width: 100%;
+    transition: border-color .15s;
+  }
+  textarea { resize: vertical; min-height: 72px }
+  input[type=color] { background: var(--bg); border: 1px solid var(--black); padding: 4px; height: 36px; width: 100%; cursor: pointer }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--purple) }
+  .form-actions { display: flex; gap: 10px; align-items: center }
+
+  /* ── Alert ── */
+  .alert { padding: 10px 14px; font-size: 13px; font-weight: 600; border: 1px solid; margin-top: 14px }
+  .alert.success { background: #dcfce7; border-color: #86efac; color: var(--green) }
+  .alert.error   { background: #fee2e2; border-color: #fca5a5; color: var(--red) }
+  .alert.info    { background: #ede9fe; border-color: #c4b5fd; color: #6d28d9 }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px }
+  th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gray); border-bottom: 1px solid var(--black) }
+  td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: middle }
+  tr:last-child td { border-bottom: none }
+  tr:hover td { background: var(--bg) }
+  .mono { font-family: 'Courier New', monospace; font-size: 12px; color: var(--gray) }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px }
+  .dot.green  { background: #22c55e }
+  .dot.yellow { background: #eab308 }
+  .dot.red    { background: var(--red) }
+
+  .tag { display: inline-block; padding: 2px 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; border: 1px solid }
+  .tag.green  { border-color: #86efac; color: var(--green); background: #dcfce7 }
+  .tag.yellow { border-color: #fde68a; color: #92400e; background: #fef3c7 }
+  .tag.red    { border-color: #fca5a5; color: var(--red); background: #fee2e2 }
+
+  .empty { padding: 40px; text-align: center; font-size: 13px; color: var(--gray); font-style: italic }
+
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite }
+  @keyframes spin { to { transform: rotate(360deg) } }
+  .spinner.dark { border-color: rgba(0,0,0,.15); border-top-color: var(--black) }
+
+  /* ── Color swatch ── */
+  .color-swatch { display: inline-block; width: 14px; height: 14px; border: 1px solid var(--border); vertical-align: middle; margin-right: 6px }
+
+  /* ── Card grid ── */
+  .cards-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; padding: 16px;
+  }
+  .card-thumb {
+    border: 1px solid var(--border); background: var(--bg);
+    display: flex; flex-direction: column; overflow: hidden; cursor: default;
+    transition: border-color .15s;
+  }
+  .card-thumb:hover { border-color: var(--black) }
+  .card-thumb-img {
+    aspect-ratio: 2/3; object-fit: cover; width: 100%; display: block;
+    background: #1a1a1a;
+  }
+  .card-thumb-img-placeholder {
+    aspect-ratio: 2/3; width: 100%; background: #e4e4e4;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; color: var(--border);
+  }
+  .card-thumb-info {
+    padding: 8px 10px; flex: 1;
+  }
+  .card-thumb-nom { font-size: 12px; font-weight: 700; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+  .card-thumb-meta { font-size: 10px; color: var(--gray); text-transform: uppercase; letter-spacing: .05em }
+  .card-thumb-actions {
+    display: flex; gap: 4px; padding: 6px 10px; border-top: 1px solid var(--border);
+  }
+  .card-thumb-actions .btn { flex: 1; justify-content: center; padding: 4px 6px; font-size: 10px }
+
+  /* ── Set card ── */
+  .set-card {
+    border: 1px solid var(--black); background: var(--white); margin-bottom: 16px; overflow: hidden;
+  }
+  .set-card-head {
+    padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none; transition: background .1s;
+  }
+  .set-card-head:hover { background: var(--bg) }
+  .set-card-head-left { display: flex; align-items: center; gap: 14px }
+  .set-card-chevron { font-size: 10px; color: var(--gray); transition: transform .2s }
+  .set-card-chevron.open { transform: rotate(180deg) }
+  .set-card-body { display: none; border-top: 1px solid var(--border); padding: 20px }
+  .set-card-body.open { display: block }
+
+  /* ── Drop zone ── */
+  .drop-zone {
+    border: 2px dashed var(--border); padding: 20px; text-align: center;
+    cursor: pointer; transition: border-color .15s; display: flex;
+    align-items: center; justify-content: center; flex-direction: column; gap: 8px; min-height: 80px;
+  }
+  .drop-zone:hover, .drop-zone.over { border-color: var(--purple) }
+  .drop-zone-label { font-size: 11px; color: var(--gray); font-weight: 600; text-transform: uppercase; letter-spacing: .06em }
+  .drop-preview { max-height: 100px; object-fit: contain; display: none }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login">
+  <div>
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--gray);border:1px solid var(--border);padding:6px 14px;display:inline-block;margin-bottom:32px">Espace Streamer</div>
+    <h1>Karto <span>Streamer</span></h1>
+  </div>
+  <p>Connecte-toi avec ton compte Twitch pour gérer ta collection de cartes sur Karto.</p>
+  <button class="btn-twitch" onclick="connexionTwitch()">
+    <svg viewBox="0 0 24 24"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
+    Se connecter avec Twitch
+  </button>
+  <p id="loginError"></p>
+</div>
+
+<!-- App -->
+<div id="app">
+  <nav>
+    <div class="nav-logo">Karto <span>Streamer</span></div>
+    <div class="nav-right">
+      <span class="nav-user" id="userName"></span>
+      <button class="btn sm" onclick="deconnexion()">Déconnexion</button>
+    </div>
+  </nav>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('sets', this)">Mes Sets</button>
+    <button class="tab-btn" onclick="switchTab('cartes', this)">Cartes</button>
+    <button class="tab-btn" onclick="switchTab('recompenses', this)">Récompenses Twitch</button>
+  </div>
+
+  <!-- ── MES SETS ── -->
+  <div id="tab-sets" class="tab active">
+    <div class="page">
+
+      <div class="section">
+        <div class="section-head">
+          <h2>Créer un nouveau set</h2>
+        </div>
+        <div class="section-body">
+          <div class="form-grid">
+            <div class="field">
+              <label>ID du set * <small style="font-weight:400;text-transform:none;font-size:10px">(ex: saison1, sans espaces)</small></label>
+              <input id="ns-id" type="text" placeholder="saison1">
+            </div>
+            <div class="field">
+              <label>Nom affiché *</label>
+              <input id="ns-nom" type="text" placeholder="L'Ère de la Vapeur">
+            </div>
+            <div class="field">
+              <label>Description</label>
+              <input id="ns-desc" type="text" placeholder="Description du set…">
+            </div>
+            <div class="field">
+              <label>Couleur</label>
+              <input id="ns-couleur" type="color" value="#9146ff">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn primary" onclick="createSet()"><span id="ns-btn-label">Créer le set</span></button>
+          </div>
+          <div id="ns-msg"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <h2>Mes sets</h2>
+          <button class="btn sm" onclick="reloadMe()">↻ Actualiser</button>
+        </div>
+        <div id="sets-list"><div class="empty">Chargement…</div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── CARTES ── -->
+  <div id="tab-cartes" class="tab">
+    <div class="page">
+
+      <div class="section">
+        <div class="section-head">
+          <h2>Cartes du set</h2>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="cartes-set-sel" onchange="loadCartes()" style="padding:6px 10px;border:1px solid var(--black);background:var(--bg);font-family:Inter,sans-serif;font-size:12px"></select>
+            <button class="btn sm" onclick="loadCartes()">↻ Actualiser</button>
+          </div>
+        </div>
+        <div id="cartes-grid"><div class="empty">Sélectionne un set.</div></div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h2>Ajouter une carte</h2></div>
+        <div class="section-body">
+          <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr">
+            <div class="field">
+              <label>Nom *</label>
+              <input id="c-nom" type="text" placeholder="ex: Ingénieur des Brumes">
+            </div>
+            <div class="field">
+              <label>Rareté *</label>
+              <select id="c-rarete">
+                <option value="Commun">Commun</option>
+                <option value="Peu Commun">Peu Commun</option>
+                <option value="Rare">Rare</option>
+                <option value="Épique">Épique</option>
+                <option value="Légendaire">Légendaire</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Type</label>
+              <input id="c-type" type="text" placeholder="Mage, Guerrier…">
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:16px">
+            <label>Image *</label>
+            <div class="drop-zone" id="c-drop"
+              onclick="document.getElementById('c-file').click()"
+              ondragover="event.preventDefault();this.classList.add('over')"
+              ondragleave="this.classList.remove('over')"
+              ondrop="event.preventDefault();this.classList.remove('over');handleCardFile(event.dataTransfer.files[0])">
+              <span class="drop-zone-label" id="c-drop-label">Glisser une image ou cliquer</span>
+              <img class="drop-preview" id="c-preview" alt="">
+            </div>
+            <input type="file" id="c-file" accept="image/*" style="display:none" onchange="handleCardFile(this.files[0])">
+          </div>
+          <div class="form-actions">
+            <button class="btn primary" onclick="addCarte()"><span id="c-btn-label">Ajouter la carte</span></button>
+          </div>
+          <div id="c-msg"></div>
+        </div>
+      </div>
+
+      <!-- Edit card section (hidden by default) -->
+      <div class="section" id="edit-carte-section" style="display:none">
+        <div class="section-head">
+          <h2>Modifier la carte</h2>
+          <button class="btn sm" onclick="cancelEditCarte()">Annuler</button>
+        </div>
+        <div class="section-body">
+          <input type="hidden" id="ec-id">
+          <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr">
+            <div class="field">
+              <label>Nom</label>
+              <input id="ec-nom" type="text">
+            </div>
+            <div class="field">
+              <label>Rareté</label>
+              <select id="ec-rarete">
+                <option value="Commun">Commun</option>
+                <option value="Peu Commun">Peu Commun</option>
+                <option value="Rare">Rare</option>
+                <option value="Épique">Épique</option>
+                <option value="Légendaire">Légendaire</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Type</label>
+              <input id="ec-type" type="text">
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:16px">
+            <label>Nouvelle image (optionnel)</label>
+            <div class="drop-zone" id="ec-drop"
+              onclick="document.getElementById('ec-file').click()"
+              ondragover="event.preventDefault();this.classList.add('over')"
+              ondragleave="this.classList.remove('over')"
+              ondrop="event.preventDefault();this.classList.remove('over');handleEditCardFile(event.dataTransfer.files[0])">
+              <span class="drop-zone-label" id="ec-drop-label">Glisser une image ou cliquer (laisse vide pour conserver)</span>
+              <img class="drop-preview" id="ec-preview" alt="">
+            </div>
+            <input type="file" id="ec-file" accept="image/*" style="display:none" onchange="handleEditCardFile(this.files[0])">
+            <input type="hidden" id="ec-image-url">
+          </div>
+          <div class="form-actions">
+            <button class="btn primary" onclick="saveEditCarte()">Enregistrer les modifications</button>
+          </div>
+          <div id="ec-msg"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── RÉCOMPENSES TWITCH ── -->
+  <div id="tab-recompenses" class="tab">
+    <div class="page">
+
+      <div class="section">
+        <div class="section-head">
+          <h2>Abonnements EventSub actifs</h2>
+          <button class="btn sm" onclick="loadEventsub()">↻ Actualiser</button>
+        </div>
+        <div id="eventsub-list"><div class="empty">Chargement…</div></div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h2>Lier une récompense Twitch</h2></div>
+        <div class="section-body">
+          <div class="alert info" style="margin-top:0;margin-bottom:16px">
+            Récupère l'ID de ta récompense de points de chaîne depuis ton tableau de bord Twitch
+            (<a href="https://dashboard.twitch.tv/" target="_blank" style="color:var(--purple);text-decoration:underline">dashboard.twitch.tv</a>
+            → Gestion de la chaîne → Points de chaîne → ID de la récompense).
+          </div>
+          <div class="form-grid" style="grid-template-columns:1fr 1fr">
+            <div class="field">
+              <label>Set *</label>
+              <select id="r-set-sel"></select>
+            </div>
+            <div class="field">
+              <label>ID de la récompense Twitch *</label>
+              <input id="r-reward-id" type="text" placeholder="ex: a1b2c3d4-…">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn primary" onclick="linkReward()"><span id="r-btn-label">Lier la récompense</span></button>
+          </div>
+          <div id="r-msg"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /#app -->
+
+<script>
+const TWITCH_CLIENT_ID = 'w7avkje8ceeuerq3wouq6dh39msysm'
+let token = null
+let meData = null   // { streamerId, streamerNom, sets: [...] }
+let cartesData = []
+let _cardFile = null
+let _editCardFile = null
+
+// ── XSS helper ───────────────────────────────────────────────────────────────
+
+function esc(s) {
+  const d = document.createElement('div')
+  d.textContent = s
+  return d.innerHTML
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+function connexionTwitch() {
+  const url = new URL('https://id.twitch.tv/oauth2/authorize')
+  url.searchParams.set('client_id',     TWITCH_CLIENT_ID)
+  url.searchParams.set('redirect_uri',  window.location.origin + '/streamer-admin')
+  url.searchParams.set('response_type', 'token')
+  url.searchParams.set('scope',         'user:read:email channel:read:redemptions')
+  url.searchParams.set('force_verify',  'false')
+  window.location.href = url.toString()
+}
+
+function deconnexion() {
+  localStorage.removeItem('twitch_token')
+  token = null
+  meData = null
+  document.getElementById('app').classList.remove('visible')
+  document.getElementById('login').style.display = 'flex'
+  document.getElementById('loginError').textContent = ''
+}
+
+async function init() {
+  const hash = new URLSearchParams(window.location.hash.slice(1))
+  const hashToken = hash.get('access_token')
+  if (hashToken) {
+    history.replaceState(null, '', window.location.pathname)
+    localStorage.setItem('twitch_token', hashToken)
+    token = hashToken
+  } else {
+    token = localStorage.getItem('twitch_token')
+  }
+  if (!token) return
+
+  try {
+    meData = await api('/api/streamer-admin/me')
+    showApp()
+  } catch(e) {
+    const s = e.status
+    if (s === 403) {
+      document.getElementById('loginError').textContent =
+        'Tu n\'es pas encore streamer sur Karto. Fais une demande sur la page d\'accueil.'
+    } else if (s === 401) {
+      document.getElementById('loginError').textContent =
+        'Session expirée. Reconnecte-toi.'
+      localStorage.removeItem('twitch_token')
+      token = null
+    } else {
+      document.getElementById('loginError').textContent = '⚠ ' + (e.message || 'Erreur de connexion')
+      localStorage.removeItem('twitch_token')
+      token = null
+    }
+  }
+}
+
+function showApp() {
+  document.getElementById('login').style.display = 'none'
+  document.getElementById('app').classList.add('visible')
+  const login = meData.streamerNom || meData.streamerId || ''
+  document.getElementById('userName').textContent = login
+  renderSets()
+  populateSetSelects()
+}
+
+// ── API ───────────────────────────────────────────────────────────────────────
+
+async function api(url, opts = {}) {
+  const isFormData = opts.body instanceof FormData
+  const headers = { 'Authorization': 'Bearer ' + token }
+  if (!isFormData) headers['Content-Type'] = 'application/json'
+  Object.assign(headers, opts.headers || {})
+  const r = await fetch(url, {
+    ...opts,
+    headers,
+    body: opts.body ? (isFormData ? opts.body : JSON.stringify(opts.body)) : undefined
+  })
+  if (r.status === 401) {
+    localStorage.removeItem('twitch_token')
+    token = null
+    alert('Session expirée — reconnecte-toi.')
+    window.location.reload()
+    throw new Error('session_expired')
+  }
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) throw Object.assign(new Error(data.message || data.error || ('Erreur ' + r.status)), { status: r.status })
+  return data
+}
+
+function showMsg(id, type, text) {
+  const el = document.getElementById(id)
+  if (!el) return
+  el.innerHTML = type ? `<div class="alert ${esc(type)}">${text}</div>` : ''
+  if (type === 'success') setTimeout(() => { if (el) el.innerHTML = '' }, 5000)
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+  document.getElementById('tab-' + name).classList.add('active')
+  btn.classList.add('active')
+  if (name === 'recompenses') { loadEventsub(); populateRewardSetSel() }
+  if (name === 'cartes') { populateCartesSetSel(); loadCartes() }
+}
+
+// ── Set selects ───────────────────────────────────────────────────────────────
+
+function populateSetSelects() {
+  populateCartesSetSel()
+  populateRewardSetSel()
+}
+
+function populateCartesSetSel() {
+  const sel = document.getElementById('cartes-set-sel')
+  if (!sel || !meData?.sets) return
+  const prev = sel.value
+  sel.innerHTML = meData.sets.map(s => `<option value="${esc(s.id)}">${esc(s.config?.nom || s.id)}</option>`).join('')
+  if (prev) sel.value = prev
+}
+
+function populateRewardSetSel() {
+  const sel = document.getElementById('r-set-sel')
+  if (!sel || !meData?.sets) return
+  const prev = sel.value
+  sel.innerHTML = meData.sets.map(s => `<option value="${esc(s.id)}">${esc(s.config?.nom || s.id)}</option>`).join('')
+  if (prev) sel.value = prev
+}
+
+async function reloadMe() {
+  try {
+    meData = await api('/api/streamer-admin/me')
+    renderSets()
+    populateSetSelects()
+  } catch(e) { alert(e.message) }
+}
+
+// ── MES SETS ──────────────────────────────────────────────────────────────────
+
+const RARETE_COLORS = {
+  'Commun': '#8a9bb0', 'Peu Commun': '#4caf80', 'Rare': '#4a90d9', 'Épique': '#9b59b6', 'Légendaire': '#f0a500'
+}
+
+function renderSets() {
+  const el = document.getElementById('sets-list')
+  if (!meData?.sets?.length) {
+    el.innerHTML = '<div class="empty">Aucun set. Crée ton premier set ci-dessus.</div>'
+    return
+  }
+  el.innerHTML = meData.sets.map(s => renderSetCard(s)).join('')
+}
+
+function renderSetCard(s) {
+  const cfg = s.config || {}
+  const nom = cfg.nom || s.id
+  const boosters = cfg.boosters || {}
+  const raretes  = cfg.raretes  || {}
+  const boostersHtml = Object.entries(boosters).map(([bk, bc]) => `
+    <tr>
+      <td class="mono">${esc(bk)}</td>
+      <td><input type="text"   id="b-nom-${esc(s.id)}-${esc(bk)}"   value="${esc(bc.nom || '')}"        style="width:140px"></td>
+      <td><input type="number" id="b-nb-${esc(s.id)}-${esc(bk)}"    value="${esc(String(bc.nb_cartes || 1))}" style="width:70px"></td>
+      <td><input type="number" id="b-cout-${esc(s.id)}-${esc(bk)}"  value="${esc(String(bc.cout_essence || bc.cout || 0))}"  style="width:90px"></td>
+      <td><select id="b-gar-${esc(s.id)}-${esc(bk)}" style="width:130px">
+        <option value="">Aucune</option>
+        ${['Commun','Peu Commun','Rare','Épique','Légendaire'].map(r =>
+          `<option value="${esc(r)}" ${(bc.garantie===r)?'selected':''}>${esc(r)}</option>`
+        ).join('')}
+      </select></td>
+    </tr>`).join('')
+
+  const raretesHtml = Object.entries(raretes).map(([rk, rv]) => `
+    <tr>
+      <td><strong>${esc(rk)}</strong></td>
+      <td><span class="color-swatch" style="background:${esc(rv.couleur || '#ccc')}"></span>${esc(rv.couleur || '—')}</td>
+      <td>${esc(String(rv.probabilite !== undefined ? rv.probabilite : (rv.prob || '—')))}%</td>
+    </tr>`).join('')
+
+  return `
+  <div class="set-card" id="set-card-${esc(s.id)}">
+    <div class="set-card-head" onclick="toggleSetCard('${esc(s.id)}')">
+      <div class="set-card-head-left">
+        <span class="color-swatch" style="background:${esc(cfg.couleur || '#ccc')};width:18px;height:18px"></span>
+        <div>
+          <div style="font-size:14px;font-weight:800">${esc(nom)}</div>
+          <div style="font-size:11px;color:var(--gray);margin-top:2px">${esc(s.id)} — ${s.nb_cartes || 0} carte${(s.nb_cartes||0)>1?'s':''}</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        ${cfg.reward_id
+          ? `<span class="tag green">Récompense liée</span>`
+          : `<span class="tag yellow">Pas de récompense</span>`}
+        <span class="set-card-chevron" id="chev-${esc(s.id)}">▼</span>
+      </div>
+    </div>
+    <div class="set-card-body" id="body-${esc(s.id)}">
+
+      <!-- Config générale -->
+      <div style="margin-bottom:24px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray);margin-bottom:12px">Informations générales</div>
+        <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
+          <div class="field"><label>Nom</label><input type="text" id="sc-nom-${esc(s.id)}" value="${esc(cfg.nom||'')}"></div>
+          <div class="field"><label>Description</label><input type="text" id="sc-desc-${esc(s.id)}" value="${esc(cfg.description||'')}"></div>
+          <div class="field"><label>Couleur</label><input type="color" id="sc-couleur-${esc(s.id)}" value="${esc(cfg.couleur||'#9146ff')}"></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn primary" onclick="saveSetConfig('${esc(s.id)}')">Enregistrer</button>
+        </div>
+        <div id="sc-msg-${esc(s.id)}"></div>
+      </div>
+
+      <!-- Boosters -->
+      ${boostersHtml ? `
+      <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray);margin-bottom:12px">Boosters</div>
+        <table>
+          <thead><tr><th>ID</th><th>Nom</th><th>Nb cartes</th><th>Coût essence</th><th>Garantie</th></tr></thead>
+          <tbody>${boostersHtml}</tbody>
+        </table>
+        <div class="form-actions" style="margin-top:12px">
+          <button class="btn primary" onclick="saveBoosterConfig('${esc(s.id)}')">Enregistrer les boosters</button>
+        </div>
+        <div id="b-msg-${esc(s.id)}"></div>
+      </div>` : ''}
+
+      <!-- Raretés -->
+      ${raretesHtml ? `
+      <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray);margin-bottom:12px">Raretés</div>
+        <table>
+          <thead><tr><th>Rareté</th><th>Couleur</th><th>Probabilité</th></tr></thead>
+          <tbody>${raretesHtml}</tbody>
+        </table>
+      </div>` : ''}
+
+    </div>
+  </div>`
+}
+
+function toggleSetCard(setId) {
+  const body = document.getElementById('body-' + setId)
+  const chev = document.getElementById('chev-' + setId)
+  if (!body) return
+  const isOpen = body.classList.toggle('open')
+  if (chev) chev.classList.toggle('open', isOpen)
+}
+
+async function createSet() {
+  const set_id = document.getElementById('ns-id').value.trim().replace(/[^a-z0-9_]/gi, '_').toLowerCase()
+  const nom    = document.getElementById('ns-nom').value.trim()
+  const desc   = document.getElementById('ns-desc').value.trim()
+  const couleur= document.getElementById('ns-couleur').value
+  if (!set_id || !nom) return showMsg('ns-msg', 'error', 'ID et nom sont requis')
+  const lbl = document.getElementById('ns-btn-label')
+  lbl.innerHTML = '<span class="spinner"></span>'
+  try {
+    await api('/api/streamer-admin/sets', { method: 'POST', body: { id: set_id, nom, description: desc, couleur } })
+    showMsg('ns-msg', 'success', `✓ Set <strong>${esc(nom)}</strong> créé`)
+    document.getElementById('ns-id').value   = ''
+    document.getElementById('ns-nom').value  = ''
+    document.getElementById('ns-desc').value = ''
+    await reloadMe()
+  } catch(e) { showMsg('ns-msg', 'error', esc(e.message)) }
+  finally { lbl.textContent = 'Créer le set' }
+}
+
+async function saveSetConfig(setId) {
+  const nom         = document.getElementById(`sc-nom-${setId}`)?.value?.trim()
+  const description = document.getElementById(`sc-desc-${setId}`)?.value?.trim()
+  const couleur     = document.getElementById(`sc-couleur-${setId}`)?.value
+  try {
+    await api(`/api/streamer-admin/set/${encodeURIComponent(setId)}/config`, {
+      method: 'PATCH', body: { nom, description, couleur }
+    })
+    showMsg(`sc-msg-${setId}`, 'success', '✓ Enregistré')
+    await reloadMe()
+  } catch(e) { showMsg(`sc-msg-${setId}`, 'error', esc(e.message)) }
+}
+
+async function saveBoosterConfig(setId) {
+  const set = meData?.sets?.find(s => s.id === setId)
+  if (!set) return
+  const boosters = {}
+  for (const bk of Object.keys(set.config?.boosters || {})) {
+    const orig = set.config.boosters[bk]
+    boosters[bk] = {
+      ...orig,
+      nom:          document.getElementById(`b-nom-${setId}-${bk}`)?.value  || orig.nom,
+      nb_cartes:    parseInt(document.getElementById(`b-nb-${setId}-${bk}`)?.value)   || orig.nb_cartes,
+      cout_essence: parseInt(document.getElementById(`b-cout-${setId}-${bk}`)?.value) || orig.cout_essence || orig.cout || 0,
+      garantie:     document.getElementById(`b-gar-${setId}-${bk}`)?.value   || null
+    }
+  }
+  try {
+    await api(`/api/streamer-admin/set/${encodeURIComponent(setId)}/config`, {
+      method: 'PATCH', body: { boosters }
+    })
+    showMsg(`b-msg-${setId}`, 'success', '✓ Boosters enregistrés')
+    await reloadMe()
+  } catch(e) { showMsg(`b-msg-${setId}`, 'error', esc(e.message)) }
+}
+
+// ── CARTES ────────────────────────────────────────────────────────────────────
+
+async function loadCartes() {
+  const setId = document.getElementById('cartes-set-sel')?.value
+  if (!setId) return
+  const el = document.getElementById('cartes-grid')
+  el.innerHTML = '<div class="empty">Chargement…</div>'
+  try {
+    cartesData = await api(`/api/streamer-admin/set/${encodeURIComponent(setId)}/cards`)
+    renderCartesGrid(setId)
+  } catch(e) {
+    el.innerHTML = `<div class="alert error" style="margin:16px">${esc(e.message)}</div>`
+  }
+}
+
+function renderCartesGrid(setId) {
+  const el = document.getElementById('cartes-grid')
+  if (!cartesData.length) {
+    el.innerHTML = '<div class="empty">Aucune carte dans ce set. Ajoutes-en une ci-dessous.</div>'
+    return
+  }
+  el.innerHTML = `
+    <div class="cards-grid">
+      ${cartesData.map(c => `
+        <div class="card-thumb">
+          ${c.image
+            ? `<img class="card-thumb-img" src="${esc(c.image)}" alt="${esc(c.nom)}" onerror="this.style.display='none'">`
+            : `<div class="card-thumb-img-placeholder">🃏</div>`}
+          <div class="card-thumb-info">
+            <div class="card-thumb-nom" title="${esc(c.nom)}">${esc(c.nom)}</div>
+            <div class="card-thumb-meta" style="color:${RARETE_COLORS[c.rarete]||'#666'}">${esc(c.rarete)}${c.type ? ' · ' + esc(c.type) : ''}</div>
+          </div>
+          <div class="card-thumb-actions">
+            <button class="btn sm" onclick="startEditCarte('${esc(c.id)}')">Modifier</button>
+            <button class="btn danger sm" onclick="deleteCarte('${esc(setId)}','${esc(c.id)}')">×</button>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div style="padding:10px 16px;font-size:12px;color:var(--gray);border-top:1px solid var(--border)">
+      ${cartesData.length} carte${cartesData.length > 1 ? 's' : ''}
+    </div>`
+}
+
+function handleCardFile(file) {
+  if (!file || !file.type.startsWith('image/')) return
+  _cardFile = file
+  const preview = document.getElementById('c-preview')
+  const label   = document.getElementById('c-drop-label')
+  preview.src = URL.createObjectURL(file)
+  preview.style.display = 'block'
+  label.textContent = file.name
+}
+
+function handleEditCardFile(file) {
+  if (!file || !file.type.startsWith('image/')) return
+  _editCardFile = file
+  const preview = document.getElementById('ec-preview')
+  const label   = document.getElementById('ec-drop-label')
+  preview.src = URL.createObjectURL(file)
+  preview.style.display = 'block'
+  label.textContent = file.name
+}
+
+async function uploadImage(file) {
+  const form = new FormData()
+  form.append('image', file)
+  const r = await fetch('/api/streamer-admin/upload', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token },
+    body: form
+  })
+  const data = await r.json()
+  if (!r.ok) throw new Error(data.error || 'Upload échoué')
+  return data.url
+}
+
+async function addCarte() {
+  const setId = document.getElementById('cartes-set-sel')?.value
+  const nom   = document.getElementById('c-nom').value.trim()
+  const rarete= document.getElementById('c-rarete').value
+  const type  = document.getElementById('c-type').value.trim()
+  if (!setId)      return showMsg('c-msg', 'error', 'Sélectionne un set')
+  if (!nom)        return showMsg('c-msg', 'error', 'Le nom est requis')
+  if (!_cardFile)  return showMsg('c-msg', 'error', 'Une image est requise')
+
+  const lbl = document.getElementById('c-btn-label')
+  lbl.innerHTML = '<span class="spinner"></span>'
+  try {
+    showMsg('c-msg', 'info', 'Upload de l\'image en cours…')
+    const image = await uploadImage(_cardFile)
+    await api(`/api/streamer-admin/set/${encodeURIComponent(setId)}/cards`, {
+      method: 'POST', body: { nom, rarete, type, image }
+    })
+    showMsg('c-msg', 'success', `✓ Carte <strong>${esc(nom)}</strong> ajoutée (${esc(rarete)})`)
+    document.getElementById('c-nom').value  = ''
+    document.getElementById('c-type').value = ''
+    document.getElementById('c-file').value = ''
+    document.getElementById('c-preview').style.display = 'none'
+    document.getElementById('c-drop-label').textContent = 'Glisser une image ou cliquer'
+    _cardFile = null
+    await loadCartes()
+    // Mettre à jour nb_cartes
+    const s = meData?.sets?.find(s => s.id === setId)
+    if (s) s.nb_cartes = cartesData.length
+    renderSets()
+  } catch(e) { showMsg('c-msg', 'error', esc(e.message)) }
+  finally { lbl.textContent = 'Ajouter la carte' }
+}
+
+function startEditCarte(cardId) {
+  const card = cartesData.find(c => c.id === cardId)
+  if (!card) return
+  document.getElementById('ec-id').value     = card.id
+  document.getElementById('ec-nom').value    = card.nom
+  document.getElementById('ec-rarete').value = card.rarete
+  document.getElementById('ec-type').value   = card.type || ''
+  document.getElementById('ec-image-url').value = card.image || ''
+  document.getElementById('ec-preview').style.display = 'none'
+  document.getElementById('ec-drop-label').textContent = 'Glisser une image ou cliquer (laisse vide pour conserver)'
+  _editCardFile = null
+  const section = document.getElementById('edit-carte-section')
+  section.style.display = 'block'
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function cancelEditCarte() {
+  document.getElementById('edit-carte-section').style.display = 'none'
+  document.getElementById('ec-msg').innerHTML = ''
+  _editCardFile = null
+}
+
+async function saveEditCarte() {
+  const setId  = document.getElementById('cartes-set-sel')?.value
+  const cardId = document.getElementById('ec-id').value
+  const nom    = document.getElementById('ec-nom').value.trim()
+  const rarete = document.getElementById('ec-rarete').value
+  const type   = document.getElementById('ec-type').value.trim()
+  let   image  = document.getElementById('ec-image-url').value
+
+  if (!nom) return showMsg('ec-msg', 'error', 'Le nom est requis')
+  try {
+    if (_editCardFile) {
+      showMsg('ec-msg', 'info', 'Upload de l\'image en cours…')
+      image = await uploadImage(_editCardFile)
+    }
+    await api(`/api/streamer-admin/set/${encodeURIComponent(setId)}/card/${encodeURIComponent(cardId)}`, {
+      method: 'PATCH', body: { nom, rarete, type, image }
+    })
+    showMsg('ec-msg', 'success', '✓ Carte modifiée')
+    cancelEditCarte()
+    await loadCartes()
+  } catch(e) { showMsg('ec-msg', 'error', esc(e.message)) }
+}
+
+async function deleteCarte(setId, cardId) {
+  const card = cartesData.find(c => c.id === cardId)
+  if (!confirm(`Supprimer la carte "${card?.nom || cardId}" ? Cette action est irréversible.`)) return
+  try {
+    await api(`/api/streamer-admin/set/${encodeURIComponent(setId)}/card/${encodeURIComponent(cardId)}`, { method: 'DELETE' })
+    await loadCartes()
+    const s = meData?.sets?.find(s => s.id === setId)
+    if (s) s.nb_cartes = cartesData.length
+    renderSets()
+  } catch(e) { alert(e.message) }
+}
+
+// ── RÉCOMPENSES TWITCH ────────────────────────────────────────────────────────
+
+async function loadEventsub() {
+  const el = document.getElementById('eventsub-list')
+  el.innerHTML = '<div class="empty">Chargement…</div>'
+  try {
+    const data = await api('/api/streamer-admin/eventsub')
+    const subs = data.data || []
+    if (!subs.length) {
+      el.innerHTML = '<div class="empty">Aucun abonnement EventSub actif.</div>'
+      return
+    }
+    el.innerHTML = `<table>
+      <thead><tr><th>Set</th><th>Reward ID</th><th>Statut</th><th></th></tr></thead>
+      <tbody>${subs.map(sub => {
+        const st = sub.status === 'enabled' ? 'green' : sub.status?.includes('pending') ? 'yellow' : 'red'
+        const stLabel = sub.status === 'enabled' ? 'Actif' : sub.status?.includes('pending') ? 'En attente' : 'Erreur'
+        const setId = sub.setId || sub.condition?.reward_id || '—'
+        const rewardId = sub.rewardId || sub.condition?.reward_id || '—'
+        return `<tr>
+          <td class="mono">${esc(setId)}</td>
+          <td class="mono">${esc(rewardId)}</td>
+          <td><span class="dot ${st}"></span><span class="tag ${st}">${esc(stLabel)}</span></td>
+          <td style="text-align:right">
+            <button class="btn danger sm" onclick="deleteEventsub('${esc(sub.id)}')">Supprimer</button>
+          </td>
+        </tr>`
+      }).join('')}</tbody>
+    </table>`
+  } catch(e) {
+    el.innerHTML = `<div class="alert error" style="margin:16px">${esc(e.message)}</div>`
+  }
+}
+
+async function deleteEventsub(id) {
+  if (!confirm('Supprimer cet abonnement EventSub ?')) return
+  try {
+    await api(`/api/streamer-admin/eventsub/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    loadEventsub()
+  } catch(e) { alert(e.message) }
+}
+
+async function linkReward() {
+  const setId    = document.getElementById('r-set-sel').value
+  const rewardId = document.getElementById('r-reward-id').value.trim()
+  if (!setId)    return showMsg('r-msg', 'error', 'Sélectionne un set')
+  if (!rewardId) return showMsg('r-msg', 'error', 'Saisis l\'ID de la récompense Twitch')
+
+  const lbl = document.getElementById('r-btn-label')
+  lbl.innerHTML = '<span class="spinner"></span>'
+  try {
+    await api('/api/streamer-admin/eventsub', {
+      method: 'POST', body: { setId, rewardId }
+    })
+    showMsg('r-msg', 'success', `✓ Récompense liée au set <strong>${esc(setId)}</strong>`)
+    document.getElementById('r-reward-id').value = ''
+    await reloadMe()
+    loadEventsub()
+  } catch(e) { showMsg('r-msg', 'error', esc(e.message)) }
+  finally { lbl.textContent = 'Lier la récompense' }
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+init()
+</script>
+</body>
+</html>
