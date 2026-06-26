@@ -123,8 +123,8 @@
     .mini-carte .coin { width:5px; height:5px; }
     .mini-carte .carte-infos { padding:2px 4px 3px; }
 
-    .dense-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,200px)); border-top:1px solid #000; border-left:1px solid #000; }
-    .dense-grid-item { border-right:1px solid #000; border-bottom:1px solid #000; }
+    .dense-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,160px)); border-top:1px solid #000; border-left:1px solid #000; }
+    .dense-grid-item { border-right:1px solid #000; border-bottom:1px solid #000; aspect-ratio:3/4; }
 
     .flash-rarete { position:fixed; inset:0; pointer-events:none; z-index:200; opacity:0; animation:flash .5s ease forwards; }
     @keyframes flash { 0% { opacity:1; } 100% { opacity:0; } }
@@ -831,7 +831,7 @@ function afficherCollectionStreamer(streamerId) {
     const sData    = setData[cleSet(streamerId, setId)]
     const setNom   = sData?.config?.nom || setId
     const setColor = sData?.config?.couleur || '#000'
-    return `<div class="dense-grid-item aspect-square relative cursor-pointer group hover:bg-surface-variant transition-colors"
+    return `<div class="dense-grid-item relative cursor-pointer group hover:bg-surface-variant transition-colors"
                  onclick="voirCarte('${carte.id}','${streamerId}','${setId}')">
       ${construireCarte(carte, streamerId, setId)}
       ${qty > 1 ? `<div class="absolute top-1 right-1 border border-primary bg-surface font-mono-label text-[10px] px-1 z-10">×${qty}</div>` : ''}
@@ -1044,6 +1044,8 @@ async function voirTouteCollection() {
   document.getElementById('badgePointsWrap').style.display = 'none'
   const invite = document.getElementById('inviteSet')
   if (invite) invite.style.setProperty('display', utilisateurConnecte ? 'flex' : 'none', 'important')
+  filtreCourant = 'tous'
+  genererFiltres()
   afficherCollection()
 }
 
@@ -1401,14 +1403,23 @@ function genererFiltres() {
   const actif = filtreCourant
   let html = `<button class="px-gutter py-margin-mobile font-label-caps text-label-caps uppercase whitespace-nowrap border-r border-primary ${actif==='tous'?'bg-primary text-on-primary':'text-primary hover:bg-surface-variant'}" onclick="filtrer('tous',this)">Toutes</button>`
 
+  const COULEURS_RARETE_FILTRE = {'Légendaire':'#e5a100','Épique':'#9b59b6','Rare':'#3498db','Peu Commun':'#27ae60','Commun':'#95a5a6'}
+  const ordre = ['Légendaire','Épique','Rare','Peu Commun','Commun']
+
   if (setActif) {
     const { streamerId, setId } = setActif
     const sData = setData[cleSet(streamerId, setId)]
     const raretes = sData?.config?.raretes || {}
-    const ordre = ['Légendaire','Épique','Rare','Peu Commun','Commun']
     const raretesTri = Object.keys(raretes).sort((a,b) => ordre.indexOf(a) - ordre.indexOf(b))
     raretesTri.forEach(r => {
-      const couleur = raretes[r]?.couleur || '#000'
+      const couleur = raretes[r]?.couleur || COULEURS_RARETE_FILTRE[r] || '#000'
+      const isActif = actif === r
+      html += `<button class="px-gutter py-margin-mobile font-label-caps text-label-caps uppercase whitespace-nowrap border-r border-primary ${isActif?'text-on-primary':'text-primary hover:bg-surface-variant'}" style="${isActif?`background:${couleur}`:`color:${couleur}`}" onclick="filtrer('${r}',this)">${r}</button>`
+    })
+  } else {
+    // Vue globale : filtres de raretés standards
+    ordre.forEach(r => {
+      const couleur = COULEURS_RARETE_FILTRE[r]
       const isActif = actif === r
       html += `<button class="px-gutter py-margin-mobile font-label-caps text-label-caps uppercase whitespace-nowrap border-r border-primary ${isActif?'text-on-primary':'text-primary hover:bg-surface-variant'}" style="${isActif?`background:${couleur}`:`color:${couleur}`}" onclick="filtrer('${r}',this)">${r}</button>`
     })
@@ -1417,7 +1428,7 @@ function genererFiltres() {
   bar.innerHTML = html
 }
 
-function afficherCollection() {
+async function afficherCollection() {
   const ordre  = ['Légendaire','Épique','Rare','Peu Commun','Commun']
 
   const grille    = document.getElementById('grilleCartes')
@@ -1449,7 +1460,7 @@ function afficherCollection() {
 
     grille.innerHTML = entrees.map(({ carte, qty }) => {
       const possede = qty > 0
-      return `<div class="dense-grid-item aspect-square relative ${possede ? 'cursor-pointer hover:bg-surface-variant' : 'cursor-default'} group transition-colors"
+      return `<div class="dense-grid-item relative ${possede ? 'cursor-pointer hover:bg-surface-variant' : 'cursor-default'} group transition-colors"
                    ${possede ? `onclick="voirCarte('${carte.id}','${streamerId}','${setId}')"` : ''}>
         <div style="${possede ? '' : 'filter:grayscale(1) brightness(.3);pointer-events:none'}">
           ${construireCarte(carte, streamerId, setId)}
@@ -1460,17 +1471,30 @@ function afficherCollection() {
     }).join('')
 
   } else {
-    // Vue globale toutes collections
-    if (progress) progress.style.display = 'none'
+    // Vue globale : toutes les cartes de tous les sets (possédées ou non)
+
+    // Charger les setData manquants
+    const setsManquants = []
+    for (const s of streamers) {
+      for (const set of (s.sets || [])) {
+        if (!setData[cleSet(s.id, set.id)]) setsManquants.push(chargerSetData(s.id, set.id))
+      }
+    }
+    if (setsManquants.length) await Promise.all(setsManquants)
 
     let entrees = []
-    for (const [sid, sets] of Object.entries(collectionGlobale)) {
-      for (const [sid2, cartes] of Object.entries(sets)) {
-        const sData = setData[cleSet(sid, sid2)]
+    let totalPossedees = 0
+    let totalCartes = 0
+    for (const s of streamers) {
+      for (const set of (s.sets || [])) {
+        const sData = setData[cleSet(s.id, set.id)]
         if (!sData) continue
+        const col = collectionGlobale[s.id]?.[set.id] || {}
         for (const carte of sData.cards) {
-          const qty = cartes[carte.id] || 0
-          if (qty > 0) entrees.push({ carte, qty, streamerId: sid, setId: sid2 })
+          const qty = col[carte.id] || 0
+          entrees.push({ carte, qty, streamerId: s.id, setId: set.id })
+          totalCartes++
+          if (qty > 0) totalPossedees++
         }
       }
     }
@@ -1483,14 +1507,22 @@ function afficherCollection() {
       return ordre.indexOf(a.carte.rarete) - ordre.indexOf(b.carte.rarete)
     })
 
-    const totalExemplaires = entrees.reduce((acc,e) => acc + e.qty, 0)
-    compteur.textContent = totalExemplaires + ' exemplaire' + (totalExemplaires > 1 ? 's' : '')
+    compteur.textContent = totalPossedees + '/' + totalCartes + ' carte' + (totalCartes > 1 ? 's' : '')
+    if (progress) { progress.textContent = ''; progress.style.display = 'none' }
 
     grille.innerHTML = entrees.map(({ carte, qty, streamerId, setId }) => {
-      return `<div class="dense-grid-item aspect-square relative cursor-pointer hover:bg-surface-variant group transition-colors"
-                   onclick="voirCarte('${carte.id}','${streamerId}','${setId}')">
-        ${construireCarte(carte, streamerId, setId)}
+      const possede = qty > 0
+      const sData    = setData[cleSet(streamerId, setId)]
+      const setNom   = sData?.config?.nom || setId
+      const setColor = sData?.config?.couleur || '#000'
+      return `<div class="dense-grid-item relative ${possede ? 'cursor-pointer hover:bg-surface-variant' : 'cursor-default'} group transition-colors"
+                   ${possede ? `onclick="voirCarte('${carte.id}','${streamerId}','${setId}')"` : ''}>
+        <div style="${possede ? '' : 'filter:grayscale(1) brightness(.3);pointer-events:none'}">
+          ${construireCarte(carte, streamerId, setId)}
+        </div>
         ${qty > 1 ? `<div class="absolute top-1 right-1 border border-primary bg-surface font-mono-label text-[10px] px-1 z-10">×${qty}</div>` : ''}
+        ${!possede ? `<div class="absolute inset-0 flex items-center justify-center"><span style="font-size:1.5em;opacity:.4">🔒</span></div>` : ''}
+        <div class="absolute bottom-0 left-0 right-0 px-1 py-px text-center" style="font-size:7px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:${setColor};color:#fff;opacity:.85">${esc(setNom)}</div>
       </div>`
     }).join('')
   }
