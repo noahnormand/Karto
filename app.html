@@ -123,8 +123,8 @@
     .mini-carte .coin { width:5px; height:5px; }
     .mini-carte .carte-infos { padding:2px 4px 3px; }
 
-    .dense-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,160px)); border-top:1px solid #000; border-left:1px solid #000; }
-    .dense-grid-item { border-right:1px solid #000; border-bottom:1px solid #000; aspect-ratio:3/4; }
+    .dense-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,130px)); gap:0; border-top:1px solid #000; border-left:1px solid #000; }
+    .dense-grid-item { border-right:1px solid #000; border-bottom:1px solid #000; aspect-ratio:3/4; overflow:hidden; position:relative; }
 
     .flash-rarete { position:fixed; inset:0; pointer-events:none; z-index:200; opacity:0; animation:flash .5s ease forwards; }
     @keyframes flash { 0% { opacity:1; } 100% { opacity:0; } }
