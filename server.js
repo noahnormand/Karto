@@ -1356,9 +1356,20 @@ app.get('/api/admin/streamer/:id/rewards', adminAuth, async (req, res) => {
     if (!s) return res.status(404).json({ error: 'Streamer introuvable' })
     const twitchId = s.config.twitch_id
     if (!twitchId) return res.status(400).json({ error: 'twitch_id manquant dans la config' })
-    const r = await fetch(`https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${twitchId}`, {
+    const url = `https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=${twitchId}`
+    let r = await fetch(url, {
       headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchUserToken}` }
     })
+    // Si 401, tenter un refresh et retry
+    if (r.status === 401) {
+      const ok = await refreshTwitchToken()
+      if (ok) {
+        r = await fetch(url, {
+          headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchUserToken}` }
+        })
+      }
+    }
+    if (!r.ok) return res.status(r.status).json({ error: 'Erreur Twitch API', status: r.status })
     res.json(await r.json())
   } catch(e) { console.error(e); res.status(500).json({ error: prod ? 'Erreur interne' : e.message }) }
 })
