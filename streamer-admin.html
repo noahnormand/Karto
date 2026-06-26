@@ -424,6 +424,7 @@
             <div class="field">
               <label>Récompense Twitch *</label>
               <select id="r-reward-sel"><option value="">Chargement…</option></select>
+              <input id="r-reward-id" type="text" placeholder="ID de la récompense (ex: a1b2c3d4-…)" style="display:none;margin-top:8px">
             </div>
           </div>
           <div class="form-actions">
@@ -978,17 +979,17 @@ let twitchRewards = []
 
 async function loadTwitchRewards() {
   const sel = document.getElementById('r-reward-sel')
+  const manual = document.getElementById('r-reward-id')
   sel.innerHTML = '<option value="">Chargement…</option>'
+  manual.style.display = 'none'
   try {
     const r = await fetch('/api/streamer-admin/rewards', {
       headers: { 'Authorization': 'Bearer ' + token }
     })
-    if (r.status === 403 || r.status === 400) {
-      sel.innerHTML = '<option value="">Points de chaîne non disponibles (affiliation requise)</option>'
-      return
-    }
     if (!r.ok) {
-      sel.innerHTML = '<option value="">Erreur de chargement</option>'
+      // API non dispo (pas affilié) → fallback saisie manuelle
+      sel.style.display = 'none'
+      manual.style.display = ''
       return
     }
     const data = await r.json()
@@ -997,20 +998,24 @@ async function loadTwitchRewards() {
       sel.innerHTML = '<option value="">Aucune récompense — crée-en une sur Twitch</option>'
       return
     }
+    sel.style.display = ''
     sel.innerHTML = '<option value="">— Choisir —</option>' + twitchRewards.map(r =>
       `<option value="${esc(r.id)}">${esc(r.title)} (${r.cost} pts)</option>`
     ).join('')
   } catch(e) {
-    sel.innerHTML = '<option value="">Erreur de chargement</option>'
+    sel.style.display = 'none'
+    manual.style.display = ''
     console.error('loadTwitchRewards', e)
   }
 }
 
 async function linkReward() {
   const setId    = document.getElementById('r-set-sel').value
-  const rewardId = document.getElementById('r-reward-sel').value
+  const sel = document.getElementById('r-reward-sel')
+  const manual = document.getElementById('r-reward-id')
+  const rewardId = sel.style.display === 'none' ? manual.value.trim() : sel.value
   if (!setId)    return showMsg('r-msg', 'error', 'Sélectionne un set')
-  if (!rewardId) return showMsg('r-msg', 'error', 'Sélectionne une récompense Twitch')
+  if (!rewardId) return showMsg('r-msg', 'error', sel.style.display === 'none' ? 'Saisis l\'ID de la récompense' : 'Sélectionne une récompense Twitch')
 
   const lbl = document.getElementById('r-btn-label')
   lbl.innerHTML = '<span class="spinner"></span>'
@@ -1020,7 +1025,8 @@ async function linkReward() {
     })
     const reward = twitchRewards.find(r => r.id === rewardId)
     showMsg('r-msg', 'success', `✓ "${esc(reward?.title || rewardId)}" liée au set <strong>${esc(setId)}</strong>`)
-    document.getElementById('r-reward-sel').value = ''
+    if (sel.style.display === 'none') manual.value = ''
+    else sel.value = ''
     await reloadMe()
     loadEventsub()
   } catch(e) { showMsg('r-msg', 'error', esc(e.message)) }
