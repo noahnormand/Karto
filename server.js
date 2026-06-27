@@ -892,11 +892,27 @@ app.post('/webhook', async (req, res) => {
       ? Object.entries(streamers[sid]?.sets || {}).map(([k,v]) => [k,{...v, _sid: sid}])
       : Object.entries(streamers).flatMap(([s, st]) => Object.entries(st.sets || {}).map(([k,v]) => [k,{...v, _sid: s}]))
 
+    // 1. Chercher un booster avec reward_id correspondant
+    let boosterKey = null
     for (const [k, s] of sets) {
-      if (s.config.reward_id && s.config.reward_id === rewardId) {
-        setId = k; setData = s; streamerId = s._sid; break
+      for (const [bk, bc] of Object.entries(s.config.boosters || {})) {
+        if (bc.reward_id && bc.reward_id === rewardId) {
+          setId = k; setData = s; streamerId = s._sid; boosterKey = bk; break
+        }
+      }
+      if (boosterKey) break
+    }
+
+    // 2. Fallback: ancien système — reward_id sur le set (rétrocompat)
+    if (!setId) {
+      for (const [k, s] of sets) {
+        if (s.config.reward_id && s.config.reward_id === rewardId) {
+          setId = k; setData = s; streamerId = s._sid; break
+        }
       }
     }
+
+    // 3. Fallback: name matching
     if (!setId) {
       for (const [k, s] of sets) {
         if (!s.config.reward_id && (title.includes(s.config.nom?.toLowerCase()) || title.includes(k))) {
@@ -907,14 +923,15 @@ app.post('/webhook', async (req, res) => {
 
     if (!setId) {
       console.log(`[webhook] aucun set trouvé pour reward "${event.reward?.title}" (id=${rewardId})`)
-      processedMsgIds.add(msgId) // rien à réessayer
+      processedMsgIds.add(msgId)
       return res.status(200).send('ok')
     }
 
-    // Trouver le booster correspondant au coût
-    let boosterKey = null
-    for (const [bk, bc] of Object.entries(setData.config.boosters || {})) {
-      if (bc.cout === cost) { boosterKey = bk; break }
+    // Si pas encore trouvé de booster, fallback par coût
+    if (!boosterKey) {
+      for (const [bk, bc] of Object.entries(setData.config.boosters || {})) {
+        if (bc.cout === cost) { boosterKey = bk; break }
+      }
     }
     if (!boosterKey) {
       const sorted = Object.entries(setData.config.boosters || {}).sort((a,b) => a[1].cout - b[1].cout)

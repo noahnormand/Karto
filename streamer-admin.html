@@ -482,10 +482,14 @@
             Crée tes récompenses depuis <a href="https://dashboard.twitch.tv/" target="_blank" style="color:var(--purple);text-decoration:underline">dashboard.twitch.tv</a>
             → Gestion de la chaîne → Points de chaîne.
           </div>
-          <div class="form-grid" style="grid-template-columns:1fr 1fr">
+          <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr">
             <div class="field">
               <label>Set *</label>
-              <select id="r-set-sel"></select>
+              <select id="r-set-sel" onchange="populateRewardBoosterSel()"></select>
+            </div>
+            <div class="field">
+              <label>Booster *</label>
+              <select id="r-booster-sel"></select>
             </div>
             <div class="field">
               <label>Récompense Twitch *</label>
@@ -659,6 +663,19 @@ function populateRewardSetSel() {
   const prev = sel.value
   sel.innerHTML = meData.sets.map(s => `<option value="${esc(s.id)}">${esc(s.config?.nom || s.id)}</option>`).join('')
   if (prev) sel.value = prev
+  populateRewardBoosterSel()
+}
+
+function populateRewardBoosterSel() {
+  const setId = document.getElementById('r-set-sel')?.value
+  const sel = document.getElementById('r-booster-sel')
+  if (!sel) return
+  const set = meData?.sets?.find(s => s.id === setId)
+  const boosters = set?.config?.boosters || {}
+  sel.innerHTML = Object.entries(boosters).map(([bk, bc]) =>
+    `<option value="${esc(bk)}">${esc(bc.nom || bk)}</option>`
+  ).join('')
+  if (!Object.keys(boosters).length) sel.innerHTML = '<option value="">Aucun booster</option>'
 }
 
 async function reloadMe() {
@@ -708,7 +725,7 @@ function renderSetCard(s) {
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:12px">
-        ${cfg.reward_id
+        ${Object.values(cfg.boosters || {}).some(b => b.reward_id)
           ? `<span class="tag green">Récompense liée</span>`
           : `<span class="tag yellow">Pas de récompense</span>`}
         <span class="set-card-chevron" id="chev-${esc(s.id)}">▼</span>
@@ -809,7 +826,9 @@ function renderBoosters() {
   }
   el.innerHTML = setsWithBoosters.map(s => {
     const boosters = s.config.boosters
-    const rows = Object.entries(boosters).map(([bk, bc]) => `
+    const rows = Object.entries(boosters).map(([bk, bc]) => {
+      const rewardName = bc.reward_id ? (twitchRewards.find(r => r.id === bc.reward_id)?.title || bc.reward_id.slice(0,8)+'…') : ''
+      return `
       <tr>
         <td class="mono">${esc(bk)}</td>
         <td><input type="text"   id="bt-nom-${esc(s.id)}-${esc(bk)}"     value="${esc(bc.nom || '')}"                       style="width:140px"></td>
@@ -822,8 +841,9 @@ function renderBoosters() {
             `<option value="${esc(r)}" ${(bc.garantie===r)?'selected':''}>${esc(r)}</option>`
           ).join('')}
         </select></td>
+        <td>${bc.reward_id ? `<span class="tag green" style="font-size:9px">${esc(rewardName)}</span>` : `<span class="tag yellow" style="font-size:9px">Non liée</span>`}</td>
         <td><button class="btn danger sm" onclick="deleteBooster('${esc(s.id)}','${esc(bk)}')">Supprimer</button></td>
-      </tr>`).join('')
+      </tr>`}).join('')
 
     return `
     <div style="margin-bottom:24px">
@@ -833,7 +853,7 @@ function renderBoosters() {
       </div>
       <div style="padding:16px 20px">
         <table>
-          <thead><tr><th>ID</th><th>Nom</th><th>Nb cartes</th><th>Coût points</th><th>Coût essence</th><th>Garantie</th><th></th></tr></thead>
+          <thead><tr><th>ID</th><th>Nom</th><th>Nb cartes</th><th>Coût points</th><th>Coût essence</th><th>Garantie</th><th>Récompense</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
         <div class="form-actions" style="margin-top:12px">
@@ -1154,23 +1174,38 @@ async function loadTwitchRewards() {
 
 async function linkReward() {
   const setId    = document.getElementById('r-set-sel').value
+  const boosterId = document.getElementById('r-booster-sel').value
   const sel = document.getElementById('r-reward-sel')
   const manual = document.getElementById('r-reward-id')
   const rewardId = sel.style.display === 'none' ? manual.value.trim() : sel.value
-  if (!setId)    return showMsg('r-msg', 'error', 'Sélectionne un set')
-  if (!rewardId) return showMsg('r-msg', 'error', sel.style.display === 'none' ? 'Saisis l\'ID de la récompense' : 'Sélectionne une récompense Twitch')
+  if (!setId)     return showMsg('r-msg', 'error', 'Sélectionne un set')
+  if (!boosterId) return showMsg('r-msg', 'error', 'Sélectionne un booster')
+  if (!rewardId)  return showMsg('r-msg', 'error', sel.style.display === 'none' ? 'Saisis l\'ID de la récompense' : 'Sélectionne une récompense Twitch')
+
+  const set = meData?.sets?.find(s => s.id === setId)
+  const existingBoosters = set?.config?.boosters || {}
+  if (!existingBoosters[boosterId]) return showMsg('r-msg', 'error', 'Booster introuvable')
+
+  const boosters = { ...existingBoosters, [boosterId]: { ...existingBoosters[boosterId], reward_id: rewardId } }
 
   const lbl = document.getElementById('r-btn-label')
   lbl.innerHTML = '<span class="spinner"></span>'
   try {
-    await api('/api/streamer-admin/eventsub', {
-      method: 'POST', body: { setId, rewardId }
+    // Save reward_id on the booster config
+    await api(`/api/streamer-admin/set/${encodeURIComponent(setId)}/config`, {
+      method: 'PATCH', body: { boosters }
     })
+    // Also create EventSub if not already active
+    try {
+      await api('/api/streamer-admin/eventsub', { method: 'POST', body: { setId, rewardId } })
+    } catch(_) { /* EventSub may already exist */ }
+
     const reward = twitchRewards.find(r => r.id === rewardId)
-    showMsg('r-msg', 'success', `✓ "${esc(reward?.title || rewardId)}" liée au set <strong>${esc(setId)}</strong>`)
+    showMsg('r-msg', 'success', `✓ "${esc(reward?.title || rewardId)}" liée au booster <strong>${esc(existingBoosters[boosterId]?.nom || boosterId)}</strong>`)
     if (sel.style.display === 'none') manual.value = ''
     else sel.value = ''
     await reloadMe()
+    renderBoosters()
     loadEventsub()
   } catch(e) { showMsg('r-msg', 'error', esc(e.message)) }
   finally { lbl.textContent = 'Lier la récompense' }
