@@ -408,13 +408,13 @@
           <h2>Créer un booster</h2>
         </div>
         <div class="section-body">
-          <div class="form-grid">
+          <div class="form-grid" style="grid-template-columns:repeat(4, 1fr)">
             <div class="field">
               <label>Set *</label>
               <select id="nb-set" onchange="populateBoosterGarantieSel()"></select>
             </div>
             <div class="field">
-              <label>ID booster * <small style="font-weight:400;text-transform:none;font-size:10px">(ex: pack5, sans espaces)</small></label>
+              <label>ID booster *</label>
               <input id="nb-id" type="text" placeholder="single, pack5…">
             </div>
             <div class="field">
