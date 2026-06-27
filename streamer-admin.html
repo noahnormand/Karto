@@ -410,7 +410,7 @@
           <div class="form-grid">
             <div class="field">
               <label>Set *</label>
-              <select id="nb-set"></select>
+              <select id="nb-set" onchange="populateBoosterGarantieSel()"></select>
             </div>
             <div class="field">
               <label>ID booster * <small style="font-weight:400;text-transform:none;font-size:10px">(ex: pack5, sans espaces)</small></label>
@@ -436,11 +436,6 @@
               <label>Garantie</label>
               <select id="nb-garantie">
                 <option value="">Aucune</option>
-                <option value="Commun">Commun</option>
-                <option value="Peu Commun">Peu Commun</option>
-                <option value="Rare">Rare</option>
-                <option value="Épique">Épique</option>
-                <option value="Légendaire">Légendaire</option>
               </select>
             </div>
           </div>
@@ -707,12 +702,17 @@ function renderSetCard(s) {
   const nom = cfg.nom || s.id
   const raretes  = cfg.raretes  || {}
 
-  const raretesHtml = Object.entries(raretes).map(([rk, rv]) => `
+  const raretesHtml = Object.entries(raretes).map(([rk, rv]) => {
+    const prob = rv.probabilite !== undefined ? rv.probabilite : (rv.chance !== undefined ? rv.chance : (rv.prob || 0))
+    const ess = rv.essence !== undefined ? rv.essence : 0
+    return `
     <tr>
-      <td><strong>${esc(rk)}</strong></td>
-      <td><span class="color-swatch" style="background:${esc(rv.couleur || '#ccc')}"></span>${esc(rv.couleur || '—')}</td>
-      <td>${esc(String(rv.probabilite !== undefined ? rv.probabilite : (rv.prob || '—')))}%</td>
-    </tr>`).join('')
+      <td><input type="text" id="rr-nom-${esc(s.id)}-${esc(rk)}" value="${esc(rk)}" style="width:120px" data-orig="${esc(rk)}"></td>
+      <td><input type="color" id="rr-col-${esc(s.id)}-${esc(rk)}" value="${esc(rv.couleur || '#cccccc')}" style="width:50px;height:30px;padding:2px"></td>
+      <td><input type="number" id="rr-prob-${esc(s.id)}-${esc(rk)}" value="${esc(String(prob))}" style="width:70px" min="0" max="100">%</td>
+      <td><input type="number" id="rr-ess-${esc(s.id)}-${esc(rk)}" value="${esc(String(ess))}" style="width:70px" min="0"></td>
+      <td><button class="btn danger sm" onclick="deleteRarete('${esc(s.id)}','${esc(rk)}')">×</button></td>
+    </tr>`}).join('')
 
   return `
   <div class="set-card" id="set-card-${esc(s.id)}">
@@ -748,14 +748,27 @@ function renderSetCard(s) {
       </div>
 
       <!-- Raretés -->
-      ${raretesHtml ? `
       <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray);margin-bottom:12px">Raretés</div>
-        <table>
-          <thead><tr><th>Rareté</th><th>Couleur</th><th>Probabilité</th></tr></thead>
+        ${raretesHtml ? `<table>
+          <thead><tr><th>Nom</th><th>Couleur</th><th>Probabilité</th><th>Essence</th><th></th></tr></thead>
           <tbody>${raretesHtml}</tbody>
-        </table>
-      </div>` : ''}
+        </table>` : '<div class="empty" style="padding:16px">Aucune rareté configurée.</div>'}
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:600;color:var(--gray);margin-bottom:8px">Ajouter une rareté</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="rr-new-nom-${esc(s.id)}" placeholder="Nom" style="width:120px">
+            <input type="color" id="rr-new-col-${esc(s.id)}" value="#cccccc" style="width:50px;height:30px;padding:2px">
+            <input type="number" id="rr-new-prob-${esc(s.id)}" placeholder="%" style="width:60px" min="0" max="100">
+            <input type="number" id="rr-new-ess-${esc(s.id)}" placeholder="Essence" style="width:80px" min="0">
+            <button class="btn sm" onclick="addRarete('${esc(s.id)}')">Ajouter</button>
+          </div>
+        </div>
+        <div class="form-actions" style="margin-top:12px">
+          <button class="btn primary" onclick="saveRaretes('${esc(s.id)}')">Enregistrer les raretés</button>
+        </div>
+        <div id="rr-msg-${esc(s.id)}"></div>
+      </div>
 
     </div>
   </div>`
@@ -801,6 +814,55 @@ async function saveSetConfig(setId) {
   } catch(e) { showMsg(`sc-msg-${setId}`, 'error', esc(e.message)) }
 }
 
+async function saveRaretes(setId) {
+  const set = meData?.sets?.find(s => s.id === setId)
+  if (!set) return
+  const oldRaretes = set.config?.raretes || {}
+  const raretes = {}
+  for (const rk of Object.keys(oldRaretes)) {
+    const nomEl = document.getElementById(`rr-nom-${setId}-${rk}`)
+    if (!nomEl) continue // deleted
+    const newNom = nomEl.value.trim() || rk
+    const couleur = document.getElementById(`rr-col-${setId}-${rk}`)?.value || '#cccccc'
+    const chance = parseInt(document.getElementById(`rr-prob-${setId}-${rk}`)?.value) || 0
+    const essence = parseInt(document.getElementById(`rr-ess-${setId}-${rk}`)?.value) || 0
+    raretes[newNom] = { couleur, chance, essence }
+  }
+  try {
+    await api(`/api/streamer-admin/set/${encodeURIComponent(setId)}/config`, { method: 'PATCH', body: { raretes } })
+    showMsg(`rr-msg-${setId}`, 'success', '✓ Raretés enregistrées')
+    await reloadMe()
+  } catch(e) { showMsg(`rr-msg-${setId}`, 'error', esc(e.message)) }
+}
+
+async function addRarete(setId) {
+  const nom = document.getElementById(`rr-new-nom-${setId}`)?.value?.trim()
+  if (!nom) return showMsg(`rr-msg-${setId}`, 'error', 'Nom de rareté requis')
+  const couleur = document.getElementById(`rr-new-col-${setId}`)?.value || '#cccccc'
+  const chance = parseInt(document.getElementById(`rr-new-prob-${setId}`)?.value) || 0
+  const essence = parseInt(document.getElementById(`rr-new-ess-${setId}`)?.value) || 0
+
+  const set = meData?.sets?.find(s => s.id === setId)
+  const raretes = { ...(set?.config?.raretes || {}), [nom]: { couleur, chance, essence } }
+  try {
+    await api(`/api/streamer-admin/set/${encodeURIComponent(setId)}/config`, { method: 'PATCH', body: { raretes } })
+    showMsg(`rr-msg-${setId}`, 'success', `✓ Rareté "${nom}" ajoutée`)
+    document.getElementById(`rr-new-nom-${setId}`).value = ''
+    await reloadMe()
+  } catch(e) { showMsg(`rr-msg-${setId}`, 'error', esc(e.message)) }
+}
+
+async function deleteRarete(setId, rareteKey) {
+  if (!confirm(`Supprimer la rareté "${rareteKey}" ?`)) return
+  const set = meData?.sets?.find(s => s.id === setId)
+  const raretes = { ...(set?.config?.raretes || {}) }
+  delete raretes[rareteKey]
+  try {
+    await api(`/api/streamer-admin/set/${encodeURIComponent(setId)}/config`, { method: 'PATCH', body: { raretes } })
+    await reloadMe()
+  } catch(e) { alert(e.message) }
+}
+
 // ── BOOSTERS ──────────────────────────────────────────────────────────────────
 
 function populateBoosterSetSel() {
@@ -809,6 +871,16 @@ function populateBoosterSetSel() {
   const prev = sel.value
   sel.innerHTML = meData.sets.map(s => `<option value="${esc(s.id)}">${esc(s.config?.nom || s.id)}</option>`).join('')
   if (prev) sel.value = prev
+  populateBoosterGarantieSel()
+}
+
+function populateBoosterGarantieSel() {
+  const setId = document.getElementById('nb-set')?.value
+  const sel = document.getElementById('nb-garantie')
+  if (!sel) return
+  const set = meData?.sets?.find(s => s.id === setId)
+  const raretes = Object.keys(set?.config?.raretes || {})
+  sel.innerHTML = '<option value="">Aucune</option>' + raretes.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('')
 }
 
 function renderBoosters() {
@@ -837,7 +909,7 @@ function renderBoosters() {
         <td><input type="number" id="bt-essence-${esc(s.id)}-${esc(bk)}" value="${esc(String(bc.cout_essence || 0))}"        style="width:90px" min="0"></td>
         <td><select id="bt-gar-${esc(s.id)}-${esc(bk)}" style="width:130px">
           <option value="">Aucune</option>
-          ${['Commun','Peu Commun','Rare','Épique','Légendaire'].map(r =>
+          ${Object.keys(s.config?.raretes || {}).map(r =>
             `<option value="${esc(r)}" ${(bc.garantie===r)?'selected':''}>${esc(r)}</option>`
           ).join('')}
         </select></td>
