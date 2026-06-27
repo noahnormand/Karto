@@ -949,11 +949,11 @@ function renderBoosters() {
       return `
       <tr>
         <td class="mono">${esc(bk)}</td>
-        <td><input type="text"   id="bt-nom-${esc(s.id)}-${esc(bk)}"     value="${esc(bc.nom || '')}"                       style="width:140px"></td>
-        <td><input type="number" id="bt-nb-${esc(s.id)}-${esc(bk)}"      value="${esc(String(bc.nb_cartes || 10))}"          style="width:70px" min="1"></td>
-        <td><input type="number" id="bt-cout-${esc(s.id)}-${esc(bk)}"    value="${esc(String(bc.cout || 0))}"                style="width:90px" min="0"></td>
-        <td><input type="number" id="bt-essence-${esc(s.id)}-${esc(bk)}" value="${esc(String(bc.cout_essence || 0))}"        style="width:90px" min="0"></td>
-        <td><select id="bt-gar-${esc(s.id)}-${esc(bk)}" style="width:130px">
+        <td><input type="text"   id="bt-nom-${esc(s.id)}-${esc(bk)}"     value="${esc(bc.nom || '')}"                       style="width:110px"></td>
+        <td><input type="number" id="bt-nb-${esc(s.id)}-${esc(bk)}"      value="${esc(String(bc.nb_cartes || 10))}"          style="width:60px" min="1"></td>
+        <td><input type="number" id="bt-cout-${esc(s.id)}-${esc(bk)}"    value="${esc(String(bc.cout || 0))}"                style="width:70px" min="0"></td>
+        <td><input type="number" id="bt-essence-${esc(s.id)}-${esc(bk)}" value="${esc(String(bc.cout_essence || 0))}"        style="width:70px" min="0"></td>
+        <td><select id="bt-gar-${esc(s.id)}-${esc(bk)}" style="width:110px">
           <option value="">Aucune</option>
           ${Object.keys(s.config?.raretes || {}).map(r =>
             `<option value="${esc(r)}" ${(bc.garantie===r)?'selected':''}>${esc(r)}</option>`
@@ -969,9 +969,9 @@ function renderBoosters() {
         ${esc(s.config?.nom || s.id)}
         <span style="font-size:11px;font-weight:400;color:var(--gray);text-transform:none;letter-spacing:0"> — ${esc(s.id)}</span>
       </div>
-      <div style="padding:16px 20px">
-        <table>
-          <thead><tr><th>ID</th><th>Nom</th><th>Nb cartes</th><th>Coût points</th><th>Coût essence</th><th>Garantie</th><th>Récompense</th><th></th></tr></thead>
+      <div style="padding:16px 20px;overflow-x:auto">
+        <table style="min-width:700px">
+          <thead><tr><th>ID</th><th>Nom</th><th>Nb cartes</th><th>Coût pts</th><th>Coût ess.</th><th>Garantie</th><th>Récompense</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
         <div class="form-actions" style="margin-top:12px">
