@@ -241,6 +241,7 @@
   <div class="tab-bar">
     <button class="tab-btn active" onclick="switchTab('sets', this)">Mes Sets</button>
     <button class="tab-btn" onclick="switchTab('cartes', this)">Cartes</button>
+    <button class="tab-btn" onclick="switchTab('boosters', this)">Boosters</button>
     <button class="tab-btn" onclick="switchTab('recompenses', this)">Récompenses Twitch</button>
   </div>
 
@@ -397,6 +398,70 @@
     </div>
   </div>
 
+  <!-- ── BOOSTERS ── -->
+  <div id="tab-boosters" class="tab">
+    <div class="page">
+
+      <div class="section">
+        <div class="section-head">
+          <h2>Créer un booster</h2>
+        </div>
+        <div class="section-body">
+          <div class="form-grid">
+            <div class="field">
+              <label>Set *</label>
+              <select id="nb-set"></select>
+            </div>
+            <div class="field">
+              <label>ID booster * <small style="font-weight:400;text-transform:none;font-size:10px">(ex: pack5, sans espaces)</small></label>
+              <input id="nb-id" type="text" placeholder="single, pack5…">
+            </div>
+            <div class="field">
+              <label>Nom *</label>
+              <input id="nb-nom" type="text" placeholder="Booster Standard">
+            </div>
+            <div class="field">
+              <label>Nb cartes</label>
+              <input id="nb-nb" type="number" value="10" min="1">
+            </div>
+            <div class="field">
+              <label>Coût points</label>
+              <input id="nb-cout" type="number" value="500" min="0">
+            </div>
+            <div class="field">
+              <label>Coût essence</label>
+              <input id="nb-essence" type="number" value="100" min="0">
+            </div>
+            <div class="field">
+              <label>Garantie</label>
+              <select id="nb-garantie">
+                <option value="">Aucune</option>
+                <option value="Commun">Commun</option>
+                <option value="Peu Commun">Peu Commun</option>
+                <option value="Rare">Rare</option>
+                <option value="Épique">Épique</option>
+                <option value="Légendaire">Légendaire</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn primary" onclick="createBooster()">Créer le booster</button>
+          </div>
+          <div id="nb-msg"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <h2>Mes boosters</h2>
+          <button class="btn sm" onclick="reloadMe()">↻ Actualiser</button>
+        </div>
+        <div id="boosters-list"><div class="empty">Chargement…</div></div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- ── RÉCOMPENSES TWITCH ── -->
   <div id="tab-recompenses" class="tab">
     <div class="page">
@@ -517,6 +582,7 @@ function showApp() {
   document.getElementById('userName').textContent = login
   renderSets()
   populateSetSelects()
+  renderBoosters()
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -568,6 +634,7 @@ function switchTab(name, btn) {
   btn.classList.add('active')
   if (name === 'recompenses') { loadEventsub(); populateRewardSetSel(); loadTwitchRewards() }
   if (name === 'cartes') { populateCartesSetSel(); loadCartes() }
+  if (name === 'boosters') { renderBoosters() }
 }
 
 // ── Set selects ───────────────────────────────────────────────────────────────
@@ -575,6 +642,7 @@ function switchTab(name, btn) {
 function populateSetSelects() {
   populateCartesSetSel()
   populateRewardSetSel()
+  populateBoosterSetSel()
 }
 
 function populateCartesSetSel() {
@@ -598,6 +666,7 @@ async function reloadMe() {
     meData = await api('/api/streamer-admin/me')
     renderSets()
     populateSetSelects()
+    renderBoosters()
   } catch(e) { alert(e.message) }
 }
 
@@ -619,21 +688,7 @@ function renderSets() {
 function renderSetCard(s) {
   const cfg = s.config || {}
   const nom = cfg.nom || s.id
-  const boosters = cfg.boosters || {}
   const raretes  = cfg.raretes  || {}
-  const boostersHtml = Object.entries(boosters).map(([bk, bc]) => `
-    <tr>
-      <td class="mono">${esc(bk)}</td>
-      <td><input type="text"   id="b-nom-${esc(s.id)}-${esc(bk)}"   value="${esc(bc.nom || '')}"        style="width:140px"></td>
-      <td><input type="number" id="b-nb-${esc(s.id)}-${esc(bk)}"    value="${esc(String(bc.nb_cartes || 1))}" style="width:70px"></td>
-      <td><input type="number" id="b-cout-${esc(s.id)}-${esc(bk)}"  value="${esc(String(bc.cout_essence || bc.cout || 0))}"  style="width:90px"></td>
-      <td><select id="b-gar-${esc(s.id)}-${esc(bk)}" style="width:130px">
-        <option value="">Aucune</option>
-        ${['Commun','Peu Commun','Rare','Épique','Légendaire'].map(r =>
-          `<option value="${esc(r)}" ${(bc.garantie===r)?'selected':''}>${esc(r)}</option>`
-        ).join('')}
-      </select></td>
-    </tr>`).join('')
 
   const raretesHtml = Object.entries(raretes).map(([rk, rv]) => `
     <tr>
@@ -674,20 +729,6 @@ function renderSetCard(s) {
         </div>
         <div id="sc-msg-${esc(s.id)}"></div>
       </div>
-
-      <!-- Boosters -->
-      ${boostersHtml ? `
-      <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray);margin-bottom:12px">Boosters</div>
-        <table>
-          <thead><tr><th>ID</th><th>Nom</th><th>Nb cartes</th><th>Coût essence</th><th>Garantie</th></tr></thead>
-          <tbody>${boostersHtml}</tbody>
-        </table>
-        <div class="form-actions" style="margin-top:12px">
-          <button class="btn primary" onclick="saveBoosterConfig('${esc(s.id)}')">Enregistrer les boosters</button>
-        </div>
-        <div id="b-msg-${esc(s.id)}"></div>
-      </div>` : ''}
 
       <!-- Raretés -->
       ${raretesHtml ? `
@@ -743,27 +784,128 @@ async function saveSetConfig(setId) {
   } catch(e) { showMsg(`sc-msg-${setId}`, 'error', esc(e.message)) }
 }
 
-async function saveBoosterConfig(setId) {
+// ── BOOSTERS ──────────────────────────────────────────────────────────────────
+
+function populateBoosterSetSel() {
+  const sel = document.getElementById('nb-set')
+  if (!sel || !meData?.sets) return
+  const prev = sel.value
+  sel.innerHTML = meData.sets.map(s => `<option value="${esc(s.id)}">${esc(s.config?.nom || s.id)}</option>`).join('')
+  if (prev) sel.value = prev
+}
+
+function renderBoosters() {
+  populateBoosterSetSel()
+  const el = document.getElementById('boosters-list')
+  if (!el) return
+  if (!meData?.sets?.length) {
+    el.innerHTML = '<div class="empty">Aucun set disponible.</div>'
+    return
+  }
+  const setsWithBoosters = meData.sets.filter(s => s.config?.boosters && Object.keys(s.config.boosters).length > 0)
+  if (!setsWithBoosters.length) {
+    el.innerHTML = '<div class="empty">Aucun booster configuré. Crée un booster ci-dessus.</div>'
+    return
+  }
+  el.innerHTML = setsWithBoosters.map(s => {
+    const boosters = s.config.boosters
+    const rows = Object.entries(boosters).map(([bk, bc]) => `
+      <tr>
+        <td class="mono">${esc(bk)}</td>
+        <td><input type="text"   id="bt-nom-${esc(s.id)}-${esc(bk)}"     value="${esc(bc.nom || '')}"                       style="width:140px"></td>
+        <td><input type="number" id="bt-nb-${esc(s.id)}-${esc(bk)}"      value="${esc(String(bc.nb_cartes || 10))}"          style="width:70px" min="1"></td>
+        <td><input type="number" id="bt-cout-${esc(s.id)}-${esc(bk)}"    value="${esc(String(bc.cout || 0))}"                style="width:90px" min="0"></td>
+        <td><input type="number" id="bt-essence-${esc(s.id)}-${esc(bk)}" value="${esc(String(bc.cout_essence || 0))}"        style="width:90px" min="0"></td>
+        <td><select id="bt-gar-${esc(s.id)}-${esc(bk)}" style="width:130px">
+          <option value="">Aucune</option>
+          ${['Commun','Peu Commun','Rare','Épique','Légendaire'].map(r =>
+            `<option value="${esc(r)}" ${(bc.garantie===r)?'selected':''}>${esc(r)}</option>`
+          ).join('')}
+        </select></td>
+        <td><button class="btn danger sm" onclick="deleteBooster('${esc(s.id)}','${esc(bk)}')">Supprimer</button></td>
+      </tr>`).join('')
+
+    return `
+    <div style="margin-bottom:24px">
+      <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--bg)">
+        ${esc(s.config?.nom || s.id)}
+        <span style="font-size:11px;font-weight:400;color:var(--gray);text-transform:none;letter-spacing:0"> — ${esc(s.id)}</span>
+      </div>
+      <div style="padding:16px 20px">
+        <table>
+          <thead><tr><th>ID</th><th>Nom</th><th>Nb cartes</th><th>Coût points</th><th>Coût essence</th><th>Garantie</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="form-actions" style="margin-top:12px">
+          <button class="btn primary" onclick="saveSetBoosters('${esc(s.id)}')">Enregistrer</button>
+        </div>
+        <div id="bt-msg-${esc(s.id)}"></div>
+      </div>
+    </div>`
+  }).join('')
+}
+
+async function createBooster() {
+  const setId = document.getElementById('nb-set').value
+  const bId = document.getElementById('nb-id').value.trim().replace(/[^a-z0-9_]/gi, '_').toLowerCase()
+  const nom = document.getElementById('nb-nom').value.trim()
+  const nbCartes = parseInt(document.getElementById('nb-nb').value) || 10
+  const coutPts = parseInt(document.getElementById('nb-cout').value) || 500
+  const coutEssence = parseInt(document.getElementById('nb-essence').value) || 100
+  const garantie = document.getElementById('nb-garantie').value || null
+  if (!setId || !bId || !nom) return showMsg('nb-msg', 'error', 'Set, ID et nom requis')
+
+  const set = meData.sets.find(s => s.id === setId)
+  const existingBoosters = set?.config?.boosters || {}
+  if (existingBoosters[bId]) return showMsg('nb-msg', 'error', 'Un booster avec cet ID existe déjà')
+
+  const boosters = { ...existingBoosters, [bId]: { nom, nb_cartes: nbCartes, cout: coutPts, cout_essence: coutEssence, garantie } }
+
+  try {
+    await api(`/api/streamer-admin/set/${encodeURIComponent(setId)}/config`, { method: 'PATCH', body: { boosters } })
+    showMsg('nb-msg', 'success', '✓ Booster créé')
+    document.getElementById('nb-id').value = ''
+    document.getElementById('nb-nom').value = ''
+    await reloadMe()
+    renderBoosters()
+  } catch(e) { showMsg('nb-msg', 'error', esc(e.message)) }
+}
+
+async function saveSetBoosters(setId) {
   const set = meData?.sets?.find(s => s.id === setId)
   if (!set) return
   const boosters = {}
   for (const bk of Object.keys(set.config?.boosters || {})) {
+    if (!document.getElementById(`bt-nom-${setId}-${bk}`)) continue
     const orig = set.config.boosters[bk]
     boosters[bk] = {
       ...orig,
-      nom:          document.getElementById(`b-nom-${setId}-${bk}`)?.value  || orig.nom,
-      nb_cartes:    parseInt(document.getElementById(`b-nb-${setId}-${bk}`)?.value)   || orig.nb_cartes,
-      cout_essence: parseInt(document.getElementById(`b-cout-${setId}-${bk}`)?.value) || orig.cout_essence || orig.cout || 0,
-      garantie:     document.getElementById(`b-gar-${setId}-${bk}`)?.value   || null
+      nom:          document.getElementById(`bt-nom-${setId}-${bk}`)?.value     || orig.nom,
+      nb_cartes:    parseInt(document.getElementById(`bt-nb-${setId}-${bk}`)?.value)      || orig.nb_cartes,
+      cout:         parseInt(document.getElementById(`bt-cout-${setId}-${bk}`)?.value)     || orig.cout || 0,
+      cout_essence: parseInt(document.getElementById(`bt-essence-${setId}-${bk}`)?.value) || orig.cout_essence || 0,
+      garantie:     document.getElementById(`bt-gar-${setId}-${bk}`)?.value     || null
     }
   }
   try {
-    await api(`/api/streamer-admin/set/${encodeURIComponent(setId)}/config`, {
-      method: 'PATCH', body: { boosters }
-    })
-    showMsg(`b-msg-${setId}`, 'success', '✓ Boosters enregistrés')
+    await api(`/api/streamer-admin/set/${encodeURIComponent(setId)}/config`, { method: 'PATCH', body: { boosters } })
+    showMsg(`bt-msg-${setId}`, 'success', '✓ Boosters enregistrés')
     await reloadMe()
-  } catch(e) { showMsg(`b-msg-${setId}`, 'error', esc(e.message)) }
+    renderBoosters()
+  } catch(e) { showMsg(`bt-msg-${setId}`, 'error', esc(e.message)) }
+}
+
+async function deleteBooster(setId, boosterId) {
+  if (!confirm(`Supprimer le booster "${boosterId}" ?`)) return
+  const set = meData?.sets?.find(s => s.id === setId)
+  if (!set) return
+  const boosters = { ...(set.config?.boosters || {}) }
+  delete boosters[boosterId]
+  try {
+    await api(`/api/streamer-admin/set/${encodeURIComponent(setId)}/config`, { method: 'PATCH', body: { boosters } })
+    await reloadMe()
+    renderBoosters()
+  } catch(e) { alert(e.message) }
 }
 
 // ── CARTES ────────────────────────────────────────────────────────────────────
