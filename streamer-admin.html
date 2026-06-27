@@ -468,10 +468,10 @@
 
       <div class="section">
         <div class="section-head">
-          <h2>Abonnements EventSub actifs</h2>
-          <button class="btn sm" onclick="loadEventsub()">↻ Actualiser</button>
+          <h2>Boosters liés</h2>
+          <button class="btn sm" onclick="renderLinkedBoosters()">↻ Actualiser</button>
         </div>
-        <div id="eventsub-list"><div class="empty">Chargement…</div></div>
+        <div id="linked-boosters-list"><div class="empty">Chargement…</div></div>
       </div>
 
       <div class="section">
@@ -636,7 +636,7 @@ function switchTab(name, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
   document.getElementById('tab-' + name).classList.add('active')
   btn.classList.add('active')
-  if (name === 'recompenses') { loadEventsub(); populateRewardSetSel(); loadTwitchRewards() }
+  if (name === 'recompenses') { renderLinkedBoosters(); populateRewardSetSel(); loadTwitchRewards() }
   if (name === 'cartes') { populateCartesSetSel(); loadCartes() }
   if (name === 'boosters') { renderBoosters() }
 }
@@ -1095,6 +1095,52 @@ async function deleteCarte(setId, cardId) {
 }
 
 // ── RÉCOMPENSES TWITCH ────────────────────────────────────────────────────────
+
+function renderLinkedBoosters() {
+  const el = document.getElementById('linked-boosters-list')
+  if (!el) return
+  const linked = []
+  for (const s of (meData?.sets || [])) {
+    for (const [bk, bc] of Object.entries(s.config?.boosters || {})) {
+      if (bc.reward_id) {
+        const rewardName = twitchRewards.find(r => r.id === bc.reward_id)?.title || bc.reward_id.slice(0, 8) + '…'
+        linked.push({ setNom: s.config?.nom || s.id, setId: s.id, boosterId: bk, boosterNom: bc.nom || bk, rewardName, rewardId: bc.reward_id })
+      }
+    }
+  }
+  if (!linked.length) {
+    el.innerHTML = '<div class="empty">Aucun booster lié à une récompense Twitch.</div>'
+    return
+  }
+  el.innerHTML = `<table>
+    <thead><tr><th>Set</th><th>Booster</th><th>Récompense Twitch</th><th></th></tr></thead>
+    <tbody>${linked.map(l => `
+      <tr>
+        <td>${esc(l.setNom)}</td>
+        <td><strong>${esc(l.boosterNom)}</strong> <span class="mono" style="font-size:11px">(${esc(l.boosterId)})</span></td>
+        <td><span class="tag green">${esc(l.rewardName)}</span></td>
+        <td><button class="btn danger sm" onclick="unlinkBoosterReward('${esc(l.setId)}','${esc(l.boosterId)}')">Délier</button></td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`
+}
+
+async function unlinkBoosterReward(setId, boosterId) {
+  if (!confirm('Délier cette récompense du booster ?')) return
+  const set = meData?.sets?.find(s => s.id === setId)
+  if (!set) return
+  const boosters = { ...(set.config?.boosters || {}) }
+  if (boosters[boosterId]) {
+    boosters[boosterId] = { ...boosters[boosterId] }
+    delete boosters[boosterId].reward_id
+  }
+  try {
+    await api(`/api/streamer-admin/set/${encodeURIComponent(setId)}/config`, { method: 'PATCH', body: { boosters } })
+    await reloadMe()
+    renderLinkedBoosters()
+    renderBoosters()
+  } catch(e) { alert(e.message) }
+}
 
 async function loadEventsub() {
   const el = document.getElementById('eventsub-list')
