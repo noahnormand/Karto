@@ -463,7 +463,7 @@ function connexionTwitch() {
   url.searchParams.set('client_id',     TWITCH_CLIENT_ID)
   url.searchParams.set('redirect_uri',  window.location.origin + '/streamer-admin')
   url.searchParams.set('response_type', 'token')
-  url.searchParams.set('scope',         'user:read:email channel:read:redemptions')
+  url.searchParams.set('scope',         'user:read:email channel:read:redemptions channel:manage:redemptions')
   url.searchParams.set('force_verify',  'false')
   window.location.href = url.toString()
 }
