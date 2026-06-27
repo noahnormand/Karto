@@ -1078,7 +1078,8 @@ app.post('/api/admin/eventsub', adminAuth, async (req, res) => {
   try {
     const { broadcaster_id } = req.body
     if (!broadcaster_id) return res.status(400).json({ error: 'broadcaster_id requis' })
-    const tok = await appToken()
+    // Use admin user token (has channel:read:redemptions scope)
+    const tok = twitchUserToken || await appToken()
     const r = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
       method: 'POST',
       headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${tok}`, 'Content-Type': 'application/json' },
@@ -1561,10 +1562,11 @@ app.post('/api/streamer-admin/eventsub', streamerAdminAuth, async (req, res) => 
     if (!s) return res.status(404).json({ error: 'Streamer introuvable' })
     const twitchId = s.config.twitch_id
     if (!twitchId) return res.status(400).json({ error: 'twitch_id manquant dans la config' })
-    const tok = await appToken()
+    // Use streamer's own token (has channel:read:redemptions scope)
+    const userToken = (req.headers.authorization || '').replace('Bearer ', '')
     const r = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
       method: 'POST',
-      headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${tok}`, 'Content-Type': 'application/json' },
+      headers: { 'Client-Id': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${userToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'channel.channel_points_custom_reward_redemption.add',
         version: '1',
