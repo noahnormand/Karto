@@ -425,7 +425,7 @@
             <div class="field">
               <label>Récompense Twitch *</label>
               <select id="r-reward-sel"><option value="">Chargement…</option></select>
-              <input id="r-reward-id" type="text" placeholder="ID de la récompense (ex: a1b2c3d4-…)" style="display:none;margin-top:8px">
+              <input id="r-reward-id" type="text" placeholder="ID de la récompense (ex: a1b2c3d4-…)" style="display:none">
             </div>
           </div>
           <div class="form-actions">
@@ -720,7 +720,7 @@ async function createSet() {
   const lbl = document.getElementById('ns-btn-label')
   lbl.innerHTML = '<span class="spinner"></span>'
   try {
-    await api('/api/streamer-admin/sets', { method: 'POST', body: { id: set_id, nom, description: desc, couleur } })
+    await api('/api/streamer-admin/sets', { method: 'POST', body: { set_id, nom, description: desc, couleur } })
     showMsg('ns-msg', 'success', `✓ Set <strong>${esc(nom)}</strong> créé`)
     document.getElementById('ns-id').value   = ''
     document.getElementById('ns-nom').value  = ''
