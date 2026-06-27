@@ -326,7 +326,7 @@
 
     <!-- Banner set actif -->
     <div id="setActifBanner" class="border-b-2 border-primary px-margin-desktop py-8 relative overflow-hidden" style="display:none">
-      <div class="absolute inset-0 opacity-8" id="bannerBg"></div>
+      <div class="absolute inset-0" style="opacity:.25" id="bannerBg"></div>
       <div class="absolute inset-0 opacity-5" style="background-image:repeating-linear-gradient(45deg,#000 0,#000 1px,transparent 1px,transparent 12px)"></div>
       <div class="relative z-10">
         <div class="flex items-center gap-3 mb-2">
@@ -1029,12 +1029,21 @@ async function selectionnerSet(streamerId, setId) {
   const banner = document.getElementById('setActifBanner')
   banner.style.display = ''
   banner.style.borderColor = data.config.couleur || streamer?.couleur || '#000'
-  document.getElementById('bannerBg').style.background    = data.config.couleur || streamer?.couleur || '#000'
-  document.getElementById('bannerDot').style.background   = data.config.couleur || streamer?.couleur || '#000'
+  const setColor = data.config.couleur || streamer?.couleur || '#000'
+  document.getElementById('bannerBg').style.background    = setColor
+  document.getElementById('bannerDot').style.background   = setColor
   document.getElementById('bannerStreamerNom').textContent = streamer?.nom || streamerId
   document.getElementById('bannerNom').textContent        = data.config.nom
   document.getElementById('bannerDesc').textContent       = data.config.description || ''
   document.getElementById('bannerDate').textContent       = data.config.date || ''
+  // Adapt text color based on background luminance
+  const bannerContent = banner.querySelector('.relative.z-10')
+  if (bannerContent) {
+    const hex = setColor.replace('#','')
+    const r = parseInt(hex.substring(0,2),16), g = parseInt(hex.substring(2,4),16), b = parseInt(hex.substring(4,6),16)
+    const lum = (0.299*r + 0.587*g + 0.114*b) / 255
+    bannerContent.style.color = lum < 0.5 ? '#fff' : '#111'
+  }
 
   // Shop
   document.getElementById('shopSection').style.display = ''
